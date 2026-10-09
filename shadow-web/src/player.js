@@ -35,6 +35,7 @@ const DUR = {
 
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3(), _n = new THREE.Vector3(), _hit = {};
 
+const NO_MOVE = { x: 0, y: 0 };
 export class Player {
   constructor(game) {
     this.game = game;
@@ -70,7 +71,7 @@ export class Player {
     this.sense = 0;
     this.airTime = 0;
     this.webHold = 0; this.webYanked = false;
-    this.stats = { kos: 0, hives: 0, events: 0, perfect: 0 };
+    this.stats = { kos: 0, hives: 0, events: 0, perfect: 0, launches: 0, airHits: 0, webStrikes: 0 };
   }
 
   get black() { return this.suit === 'black'; }
@@ -105,16 +106,19 @@ export class Player {
       return;
     }
 
+    // cutscenes take the controls away (and keep you safe)
+    const locked = g.story && g.story.cine;
+    if (locked) { this.invuln = Math.max(this.invuln, 0.3); this.charging = false; }
     // movement intent relative to the camera
-    const mv = (this.mv = inp.move);
+    const mv = (this.mv = locked ? NO_MOVE : inp.move);
     const f = cam.forwardH(_v), r = cam.rightH(_v2);
     this.moveDir.set(0, 0, 0).addScaledVector(f, mv.y).addScaledVector(r, mv.x);
     const mlen = this.moveDir.length();
     if (mlen > 1) this.moveDir.divideScalar(mlen);
 
-    this.updateAim();
+    if (locked) { this.aim.valid = false; this.aim.enemy = null; if (this.state === 'swing') this.releaseSwing(false); } else this.updateAim();
     if (this.act) this.updateAction(dt);
-    this.handleInput(dt);
+    if (!locked) this.handleInput(dt);
 
     // physics in substeps
     const speed = this.vel.length();
@@ -895,6 +899,11 @@ export class Player {
         if (black) g.fx.tendril(this.backPos(_v), c, 0.18);
       }
     }
+    if (landed) {
+      if (a.name === 'upper') this.stats.launches++;
+      if (a.name === 'webStrike') this.stats.webStrikes++;
+      if (this.state === 'air' && a.target && a.target.airborne) this.stats.airHits++;
+    }
     if (a.name === 'upper' && landed && a.target && !a.target.isHive) {
       // ride the launcher up with them
       this.state = 'air'; this.vel.set(0, 11.8, 0); this.pos.y += 0.05;
@@ -1079,6 +1088,7 @@ export class Player {
 
   toggleSuit() {
     const g = this.game;
+    if (!this.black && g.story && g.story.blackLocked) { g.hud.flashText(g.story.blackLockMsg || 'SUIT UNAVAILABLE', '#b99cff'); return; }
     this.suit = this.black ? 'red' : 'black';
     g.fx.setSuit(this.black);
     g.audio.suit(this.black);

@@ -167,6 +167,9 @@ export class Renderer {
     this.scene.add(this.rim, this.rim.target);
     this.hemi = new THREE.HemisphereLight(0x8899bb, 0x332211, 0.9);
     this.scene.add(this.hemi);
+    // cutscene key light: always in the scene (adding lights later would recompile every material), only lit during dialogue
+    this.key = new THREE.DirectionalLight(0xfff1e0, 0);
+    this.scene.add(this.key, this.key.target);
 
     // post-processing chain
     const size = r.getDrawingBufferSize(new THREE.Vector2());

@@ -182,6 +182,104 @@ export function addAccessories(ch, look) {
         for (let i = 0; i < 4; i++) acc.spines.push(add(j.chest, new THREE.ConeGeometry(0.03, 0.55, 6).translate(0, 0.27, 0), m, (i - 1.5) * 0.07, 0.15, -0.13, -0.9, 0, (i - 1.5) * 0.35));
         break;
       }
+      case 'camera': {
+        // MJ's camera on a neck strap
+        const body = std(ch, 0x1a1a1c, { roughness: 0.5, metalness: 0.3 });
+        const g = new THREE.Group(); g.position.set(0.03, 0.02, 0.15 * k); j.chest.add(g);
+        add(g, new THREE.BoxGeometry(0.1, 0.065, 0.045), body);
+        add(g, new THREE.CylinderGeometry(0.025, 0.028, 0.05, 14), std(ch, 0x0a0a0a, { roughness: 0.2, metalness: 0.6 }), 0, 0, 0.035, Math.PI / 2);
+        add(j.chest, new THREE.TorusGeometry(0.13 * k, 0.006, 4, 24, Math.PI * 1.1), body, 0, 0.13, 0.03, -0.6, 0, Math.PI * 1.45);
+        break;
+      }
+      case 'horn': {
+        const m = std(ch, look.hornColor || 0xd9d2c0, { roughness: 0.45 });
+        // curved main horn off the brow, small one behind it
+        const big = new THREE.ConeGeometry(0.06, 0.3, 12).translate(0, 0.15, 0);
+        const bp = big.attributes.position;
+        for (let i = 0; i < bp.count; i++) { const y = bp.getY(i); bp.setZ(i, bp.getZ(i) - (y / 0.3) ** 2 * 0.07); }
+        big.computeVertexNormals();
+        add(j.head, big, m, 0, 0.13 * k, 0.11 * k, 0.95, 0, 0);
+        add(j.head, new THREE.ConeGeometry(0.03, 0.12, 8).translate(0, 0.06, 0), m, 0, 0.19 * k, 0.07 * k, 0.5, 0, 0);
+        break;
+      }
+      case 'katanas': {
+        const steel = std(ch, 0xdfe4ea, { metalness: 1, roughness: 0.2 });
+        const grip = std(ch, 0x161616, { roughness: 0.7 });
+        acc.katanas = [];
+        for (const s of [-1, 1]) {
+          const g = new THREE.Group();
+          g.position.set(s * 0.05, 0.12, -0.15 * k);
+          g.rotation.set(0, 0, s * 0.55);
+          add(g, new THREE.BoxGeometry(0.012, 0.72, 0.035).translate(0, -0.2, 0), steel);
+          add(g, new THREE.CylinderGeometry(0.016, 0.016, 0.22, 8).translate(0, 0.27, 0), grip);
+          add(g, new THREE.BoxGeometry(0.07, 0.012, 0.05).translate(0, 0.16, 0), grip);
+          j.chest.add(g);
+          acc.katanas.push(g);
+        }
+        break;
+      }
+      case 'pouches': {
+        const m = std(ch, 0x3a2c1e, { roughness: 0.8 });
+        for (let i = 0; i < 6; i++) { const a = -1.9 + i * 0.75; if (Math.abs(a) < 0.3) continue; add(j.hips, new THREE.BoxGeometry(0.05, 0.06, 0.035), m, Math.sin(a) * 0.17 * k, 0.07, Math.cos(a) * 0.15 * k, 0, a, 0); }
+        const buckle = std(ch, 0xa3121a, { roughness: 0.4, metalness: 0.3 });
+        add(j.hips, new THREE.CylinderGeometry(0.035, 0.035, 0.012, 16), buckle, 0, 0.075, 0.155 * k, Math.PI / 2);
+        add(j.hips, new THREE.TorusGeometry(0.15 * k, 0.016, 6, 24), m, 0, 0.07, 0, Math.PI / 2, 0, 0, 1.1, 0.88, 1);
+        break;
+      }
+      case 'tail': {
+        const pts = [];
+        for (let i = 0; i <= 10; i++) { const t = i / 10; pts.push(new THREE.Vector3(Math.sin(t * 3) * 0.12, -0.05 - t * 0.55 + t * t * 0.5, -0.08 - t * 0.55)); }
+        const curve = new THREE.CatmullRomCurve3(pts);
+        const m = std(ch, look.skin || 0x24356e, { roughness: 0.6 });
+        const g = new THREE.Group(); g.position.set(0, 0.02, -0.08 * k);
+        add(g, new THREE.TubeGeometry(curve, 24, 0.016, 6), m);
+        const tip = add(g, new THREE.ConeGeometry(0.05, 0.1, 4), m, pts[10].x, pts[10].y, pts[10].z - 0.03, -1.2, 0, 0);
+        tip.scale.set(1, 1, 0.25);
+        j.hips.add(g);
+        acc.tail = g;
+        break;
+      }
+      case 'ears': {
+        const m = std(ch, look.skin || 0x24356e, { roughness: 0.6 });
+        for (const s of [-1, 1]) { const e = add(j.head, new THREE.ConeGeometry(0.02, 0.09, 6), m, s * 0.105 * k, 0.1 * k, -0.005, -0.5, 0, -s * 1.1); e.scale.set(1, 1, 0.4); }
+        break;
+      }
+      case 'reactor': case 'ironEyes': {
+        const glow = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 3.2, 4) });
+        (ch.accMats || (ch.accMats = [])).push(glow);
+        if (a === 'reactor') add(j.chest, new THREE.CylinderGeometry(0.035, 0.035, 0.01, 18), glow, 0, 0.13, 0.155 * k, Math.PI / 2);
+        else for (const s of [-1, 1]) add(j.head, new THREE.BoxGeometry(0.03, 0.007, 0.01), glow, s * 0.025, 0.105 * k, 0.106 * k, 0, s * 0.35, s * 0.15);
+        break;
+      }
+      case 'thrusters': {
+        const glow = new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 3.4, 4), transparent: true, opacity: 0.8, depthWrite: false });
+        (ch.accMats || (ch.accMats = [])).push(glow);
+        acc.thrusters = [];
+        for (const sd of ['L', 'R']) {
+          const f = add(j['ft' + sd], new THREE.ConeGeometry(0.05, 0.45, 10, 1, true).translate(0, -0.25, 0), glow, 0, -0.04, 0.02, 0, 0, Math.PI);
+          f.rotation.set(0, 0, 0);
+          acc.thrusters.push(f);
+        }
+        break;
+      }
+      case 'gauntlets': {
+        const m = std(ch, 0x8a6a2a, { metalness: 0.7, roughness: 0.35 });
+        const dark = std(ch, 0x2a1c0a, { metalness: 0.5, roughness: 0.5 });
+        for (const sd of ['L', 'R']) {
+          add(j['el' + sd], new THREE.CylinderGeometry(0.06 * k, 0.07 * k, 0.2, 12), m, 0, -0.16, 0);
+          add(j['el' + sd], new THREE.SphereGeometry(0.045, 12, 8), dark, 0, -0.16, 0.06 * k);
+        }
+        break;
+      }
+      case 'coat': {
+        // long coat tails hanging from the waist
+        const geo = new THREE.CylinderGeometry(0.19, 0.27, 0.7, 18, 4, true, Math.PI * 0.62, Math.PI * 1.76).translate(0, -0.35, 0);
+        const m = std(ch, look.coatColor || look.top || 0x1a1a1e, { roughness: 0.85, side: THREE.DoubleSide });
+        const g = new THREE.Group(); g.position.set(0, 0.06, -0.01); j.hips.add(g);
+        add(g, geo, m, 0, 0, 0, 0, 0, 0, k, 1, k * 0.9);
+        acc.coat = g;
+        break;
+      }
     }
   }
 }
@@ -201,6 +299,9 @@ export function animateAccessories(ch, dt, o = {}) {
       g.rotation.set(0.1, s * (0.25 + (1 - open) * 1.15), s * (flap - (1 - open) * 0.9));
     });
   }
+  if (a.tail) { a.tail.rotation.y = Math.sin(t * 1.6) * 0.35; a.tail.rotation.x = Math.sin(t * 1.1) * 0.12 - Math.min(0.5, (o.speed || 0) * 0.03); }
+  if (a.coat) a.coat.rotation.x = -Math.min(0.5, (o.speed || 0) * 0.04);
+  if (a.thrusters) for (const f of a.thrusters) { f.visible = !!o.fly; f.scale.set(1, 0.8 + Math.random() * 0.4, 1); }
   if (a.tongue) { const v = 0.6 + Math.max(0, Math.sin(t * 1.7)) * 0.6; a.tongue.scale.set(1, v, 1); }
   if (a.claws && o.claws !== undefined) for (const c of a.claws) c.visible = o.claws;
 }

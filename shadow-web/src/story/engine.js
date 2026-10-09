@@ -4,7 +4,7 @@ import { Enemy } from '../enemies.js';
 import { Boss, VenomHydra, projectiles } from '../bosses.js';
 import { StoryUI } from './ui.js';
 import { loadSave, writeSave } from './save.js';
-import { MISSIONS } from './missions.js';
+import { MISSIONS, SIDE, ALLIES } from './missions.js';
 import { clamp, damp } from '../util.js';
 
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3();
@@ -29,14 +29,26 @@ export class Story {
     this.waiting = false;
     this.done = false;
     this.missions = MISSIONS;
+    this.side = null; this.sideDone = {};
+    this.callCd = 0; this.callAlly = null;
   }
+
+  get current() { return this.side || MISSIONS[this.index]; }
 
   get active() { return !!this.gen; }
 
   // --- campaign flow --------------------------------------------------------
   newGame() {
-    this.campaign = true; this.index = 0; this.karma = 0; this.choices = {}; this.done = false;
+    this.campaign = true; this.index = 0; this.karma = 0; this.choices = {}; this.sideDone = {}; this.done = false;
     this.startMission(0);
+  }
+
+  // Missions mid-campaign need the right side of the war: Act 1-3 the city is clean, from the pods on it's crawling.
+  syncWorld() {
+    const m = MISSIONS[Math.min(this.index, MISSIONS.length - 1)];
+    const g = this.g;
+    if (this.done) { g.city.setHives(this.hivesAfterEnding(), true); return; }
+    g.city.setHives(!!(m && m.hives), true);
   }
 
   continueGame() {
@@ -44,7 +56,7 @@ export class Story {
     if (!s) return this.newGame();
     const g = this.g;
     this.campaign = true;
-    this.index = s.index; this.karma = s.karma || 0; this.choices = s.choices || {};
+    this.index = s.index; this.karma = s.karma || 0; this.choices = s.choices || {}; this.sideDone = s.sideDone || {};
     g.level = s.level || 1; g.xp = s.xp || 0; g.xpNeed = s.xpNeed || 600;
     g.player.maxHp = s.maxHp || 120; g.player.hp = g.player.maxHp;
     this.done = !!s.done;
@@ -54,26 +66,78 @@ export class Story {
 
   save() {
     const g = this.g;
-    writeSave({ index: this.index, karma: this.karma, choices: this.choices, level: g.level, xp: g.xp, xpNeed: g.xpNeed, maxHp: g.player.maxHp, done: this.done });
+    writeSave({ index: this.index, karma: this.karma, choices: this.choices, sideDone: this.sideDone, level: g.level, xp: g.xp, xpNeed: g.xpNeed, maxHp: g.player.maxHp, done: this.done });
   }
 
   startMission(i) {
     this.cleanup();
+    this.side = null;
     this.index = i;
     const m = MISSIONS[i];
     this.mission = m;
     this.waiting = false;
     this.save();
+    this.run(m);
+  }
+
+  startSide(m) {
+    this.cleanup();
+    this.side = m;
+    this.mission = m;
+    this.waiting = false;
+    this.run(m);
+  }
+
+  run(m) {
+    const g = this.g;
+    this.startCache = null;
+    if (!this.done) this.syncWorld();
+    this.blackLocked = !!m.lockBlack; this.blackLockMsg = m.lockMsg || '';
+    for (const ev of g.encounters.events) if (ev.spawned && ev.type !== 'hive') g.encounters.despawn(ev);
+    g.encounters.events = g.encounters.events.filter((e) => e.type === 'hive');
     this.gen = m.run(this.api(), this);
     this.cmd = null; this.result = undefined;
-    this.g.player.hp = this.g.player.maxHp;
+    g.player.hp = g.player.maxHp;
     this.ui.missionTitle(m.act, m.title);
+  }
+
+  // Mission start points are searched once (rooftop finder walks every roof in the city).
+  startPos(m) {
+    const c = this.startCache || (this.startCache = new Map());
+    if (!c.has(m.id)) c.set(m.id, m.start(this));
+    return c.get(m.id);
+  }
+
+  // Side missions that can be started right now (their marker shows while you roam).
+  availableSide() {
+    if (!this.campaign || this.gen) return [];
+    return SIDE.filter((m) => !m.chained && !this.sideDone[m.id] && m.unlock(this));
+  }
+
+  // Every marker the HUD should draw: the active objective, the next mission, open side missions.
+  markers() {
+    const out = [];
+    if (this.marker) out.push({ pos: this.marker, label: this.markerLabel, kind: this.side ? 'side' : 'main' });
+    for (const m of this.availableSide()) out.push({ pos: this.startPos(m), label: m.title, kind: 'side' });
+    return out;
   }
 
   finishMission() {
     const g = this.g;
     this.gen = null; this.cmd = null;
     this.cleanup(true);
+    if (this.side) {
+      const m = this.side;
+      this.sideDone[m.id] = true;
+      g.addXp(300);
+      const next = m.next && SIDE.find((x) => x.id === m.next);
+      this.save();
+      if (next) { this.startSide(next); return; }
+      this.side = null;
+      g.hud.flashText('SIDE MISSION COMPLETE', '#ffd36a');
+      if (this.done) this.postGame(); else this.waiting = true;
+      return;
+    }
     this.index++;
     if (this.index >= MISSIONS.length) { this.done = true; this.save(); this.postGame(); return; }
     g.addXp(250);
@@ -88,9 +152,17 @@ export class Story {
   postGame() {
     const g = this.g;
     this.gen = null; this.waiting = false; this.campaign = true; this.done = true;
-    g.city.setHives(g.city.hives.some((h) => h.alive), true);
+    g.city.setHives(this.hivesAfterEnding(), true);
     this.blackLocked = false;
     this.objective = 'Free roam — stop crimes and outbreaks';
+    this.marker = null;
+  }
+
+  // The purge endings wipe the symbiote out; the control endings leave the hives standing.
+  hivesAfterEnding() {
+    const e = this.choices.ending;
+    if (e === 'hero' || e === 'antihero') return false;
+    return this.g.city.hives.some((h) => h.alive);
   }
 
   fail(msg) {
@@ -100,7 +172,19 @@ export class Story {
     this.g.toast('<b>MISSION FAILED</b> &mdash; retrying', 3);
   }
 
-  restartMission() { if (this.gen || this.waiting) this.startMission(this.index); }
+  restartMission() {
+    if (!this.gen) return;
+    this.g.player.respawn();
+    this.retry();
+  }
+
+  retry() {
+    const m = this.current;
+    const p = m.start(this);
+    const a = this.api();
+    a.place(p, 0, 'ground');
+    if (this.side) this.startSide(this.side); else this.startMission(this.index);
+  }
 
   // Keep track of anything a mission creates so retries and transitions start clean.
   adopt(e) { this.adopted.push(e); }
@@ -110,14 +194,15 @@ export class Story {
     for (const grp of this.groups) for (const e of grp.enemies) e.remove();
     for (const e of this.adopted) e.remove && e.remove();
     for (const b of this.bosses) b.remove();
-    for (const a of this.actors) if (!(keepAllies && a.keep)) a.remove();
+    for (const a of this.actors) if (!(keepAllies && (a.keep || a === this.callAlly))) a.remove();
     for (const p of this.props) if (!p.keep) p.remove();
     this.groups = []; this.adopted = []; this.bosses = [];
-    this.actors = this.actors.filter((a) => keepAllies && a.keep && !a.removed);
+    this.actors = this.actors.filter((a) => keepAllies && (a.keep || a === this.callAlly) && !a.removed);
+    if (this.callAlly && this.callAlly.removed) this.callAlly = null;
     this.props = this.props.filter((p) => p.keep);
     for (const e of [...g.enemies]) if (e.isHead || (e.isBoss && !e.removed)) e.remove();
     projectiles(g).clear();
-    this.camOv = null; this.cine = false;
+    this.camOv = null; this.cine = false; this.hiveEvents = false; this.watcher = null;
     this.objective = ''; this.marker = null;
     this.ui.reset();
     g.cam.cine = 0;
@@ -132,21 +217,28 @@ export class Story {
     for (const b of this.bosses) if (b.update && b instanceof VenomHydra) b.update(dt);
     projectiles(g).update(dt);
     this.ui.update(rdt, this.karma);
+    if (!this.camOv) this.keyLight(rdt, false);
     if (this.barkT > 0) { this.barkT -= rdt; if (this.barkT <= 0 && this.barkNext) this.barkNext(); }
     if (this.failing > 0) {
       this.failing -= rdt;
-      if (this.failing <= 0) { pl.respawn(); this.startMission(this.index); }
+      if (this.failing <= 0) { if (pl.state === 'dead') pl.respawn(); this.retry(); }
       return;
     }
-    if (this.waiting) {
-      const m = MISSIONS[this.index];
-      const p = m.start(this);
-      this.marker = p; this.markerLabel = m.title; this.objective = `Mission: ${m.title}`;
-      if (pl.pos.distanceTo(p) < 14 && pl.state !== 'dead') this.startMission(this.index);
+    this.updateCallIn(dt);
+    if (!this.gen) {
+      // roaming: walk into a gold marker to start the next mission, or a side-mission marker
+      if (pl.state === 'dead') return;
+      for (const m of this.availableSide()) if (pl.pos.distanceTo(this.startPos(m)) < 12) { this.startSide(m); return; }
+      if (this.waiting) {
+        const m = MISSIONS[this.index];
+        const p = this.startPos(m);
+        this.marker = p; this.markerLabel = m.title; this.objective = `Mission: ${m.title}`;
+        if (pl.pos.distanceTo(p) < 14) this.startMission(this.index);
+      }
       return;
     }
-    if (!this.gen) return;
     if (pl.state === 'dead' && !this.cine) { this.fail('DEFEATED'); return; }
+    if (this.watcher) { const f = this.watcher(); if (f) { this.fail(f); return; } }
     // run the mission script
     for (let guard = 0; guard < 50; guard++) {
       if (this.cmd) {
@@ -163,6 +255,45 @@ export class Story {
     }
   }
 
+  // Call-in allies: whoever answers depends on karma and who you've met.
+  callIn() {
+    const g = this.g;
+    if (!this.campaign) return;
+    if (this.cine || this.g.player.state === 'dead') return;
+    if (this.callCd > 0) { g.hud.flashText(`ALLY READY IN ${Math.ceil(this.callCd)}s`, '#9fb7ff'); return; }
+    if (this.callAlly && !this.callAlly.removed) { g.hud.flashText('ALLY ALREADY HERE', '#9fb7ff'); return; }
+    const pool = ALLIES(this);
+    if (!pool.length) { g.hud.flashText('NO ALLIES YET', '#9fb7ff'); return; }
+    if (this.actors.some((a) => a.mode === 'ally' && !a.removed && !a.life)) { g.hud.flashText('ALREADY TEAMED UP', '#9fb7ff'); return; }
+    const id = pool[Math.floor(Math.random() * pool.length)];
+    const pl = g.player;
+    const p = pl.pos.clone().add(new THREE.Vector3(Math.cos(pl.yaw) * 2.5, 0, -Math.sin(pl.yaw) * 2.5));
+    if (Math.abs(g.city.groundAt(p.x, p.z, pl.pos.y + 1) - pl.pos.y) > 0.6 || g.city.pointInBox(_v.copy(p).setY(pl.pos.y + 0.9), 0.2)) p.copy(pl.pos);
+    const a = new Actor(g, id, p, { ally: true, life: 30, yaw: pl.yaw });
+    a.poof(true);
+    this.actors.push(a);
+    this.callAlly = a;
+    this.callCd = 75;
+    const c = a.cast;
+    g.hud.flashText(`${c.name.toUpperCase()} ANSWERS`, c.color);
+    const lines = { luke: 'Sweet Christmas. Point me at somebody.', moon: 'The night has eyes. Mine are on your six.', wolverine: "Heard you needed claws.", cat: "Miss me, spider?", deadpool: 'Did somebody say team-up?! I brought snacks. And grenades. Mostly grenades.', nightcrawler: 'Guten Abend! Where shall I begin?', vulture: "Don't get used to this.", widow: "You owe me one.", mj: "I've got your back, tiger." };
+    if (lines[id]) this.api().bark([[id, lines[id]]]);
+  }
+
+  updateCallIn(dt) {
+    this.callCd = Math.max(0, this.callCd - dt);
+    if (this.callAlly && this.callAlly.removed) { this.actors = this.actors.filter((a) => a !== this.callAlly); this.callAlly = null; }
+  }
+
+  // Light faces from the camera side during dialogue, so night scenes stay readable.
+  keyLight(rdt, on) {
+    const r = this.g.renderer, k = r.key;
+    if (!k) return;
+    const want = on ? (r.timeKey === 'day' ? 0.6 : 1.5) : 0;
+    k.intensity += (want - k.intensity) * damp(4, rdt);
+    if (on) { k.position.copy(this.camPos).add(_v.set(0, 2.5, 0)); k.target.position.copy(this.camLook); }
+  }
+
   // Camera override used by cutscenes.
   applyCamera(rdt) {
     const ov = this.camOv;
@@ -177,6 +308,7 @@ export class Story {
     cam.lookAt(this.camLook);
     cam.fov += ((ov.fov || 55) - cam.fov) * damp(3, rdt);
     cam.updateProjectionMatrix();
+    this.keyLight(rdt, ov.key !== false);
     return true;
   }
 
@@ -240,17 +372,40 @@ export class Story {
       },
       hydra(pos) { const h = new VenomHydra(g, pos); S.bosses.push(h); return h; },
       prop(p, keep = false) { p.keep = keep; S.props.push(p); return p; },
-      cam(pos, look, o = {}) { S.camOv = { pos, look, k: o.k || 3, fov: o.fov || 55, snap: o.snap }; },
+      cam(pos, look, o = {}) { S.camOv = { pos, look, k: o.k || 3, fov: o.fov || 55, snap: o.snap, key: o.key }; },
       camOff() { S.camOv = null; },
       // Frame a character's face from the front.
       shot(who, o = {}) {
-        const head = () => (who === 'spidey' ? pl.pos : who.pos).clone().setY((who === 'spidey' ? pl.pos.y : who.pos.y) + (o.h || 1.6) * (who.char ? who.char.scale : 1));
+        const low = who !== 'spidey' && (who.state === 'beaten' || ['kneel', 'injured', 'perch'].includes(who.pose));
+        const hh = o.h || (low ? (who.pose === 'injured' ? 0.45 : 1.0) : 1.6);
+        const head = () => (who === 'spidey' ? pl.pos : who.pos).clone().setY((who === 'spidey' ? pl.pos.y : who.pos.y) + hh * (who.char ? who.char.scale : 1));
         const yaw = () => (who === 'spidey' ? pl.yawVis : who.yaw) + (o.side || 0.45);
         api.cam(() => head().add(V(Math.sin(yaw()) * (o.d || 3.2), 0.25, Math.cos(yaw()) * (o.d || 3.2))), head, { k: o.k || 4, fov: o.fov || 45, snap: o.snap });
       },
       faceEachOther(a, b) { const pa = a === 'spidey' ? pl.pos : a.pos, pb = b === 'spidey' ? pl.pos : b.pos; if (a === 'spidey') pl.yaw = pl.yawVis = Math.atan2(pb.x - pa.x, pb.z - pa.z); else a.face(pb); if (b === 'spidey') pl.yaw = pl.yawVis = Math.atan2(pa.x - pb.x, pa.z - pb.z); else b.face(pa); },
-      cine(on) { S.cine = on; S.ui.letterbox(on); if (!on) { S.camOv = null; } },
+      cine(on) { S.cine = on; S.ui.letterbox(on); if (on) { pl.act = null; if (pl.state === 'swing') pl.releaseSwing(false); } else { S.camOv = null; g.cam.yaw = pl.yawVis; } },
       bossBar(b) { S.ui.boss(b); },
+      hiveEvents(on) { S.hiveEvents = on; },
+      // Mission-wide fail condition checked every frame: return a message to fail.
+      watch(fn) { S.watcher = fn; },
+      stats() { return { ...pl.stats }; },
+      walk(a, p, speed = 3) { a.walkTo = p.clone(); a.walkSpeed = speed; },
+      // A big, open, uncovered rooftop near (x, z) — for rooftop fights and meetings.
+      roof(x, z, o = {}) {
+        let best = null;
+        for (const t of g.city.tops) {
+          if (t.small || t.y < (o.min ?? 20) || t.y > (o.max ?? 140)) continue;
+          if (t.x1 - t.x0 < (o.size || 22) || t.z1 - t.z0 < (o.size || 22)) continue;
+          const cx = (t.x0 + t.x1) / 2, cz = (t.z0 + t.z1) / 2;
+          if (g.city.roofAt(cx, cz) > t.y + 0.3) continue;
+          if (o.avoidHives !== false && g.city.hives.some((h) => Math.hypot(h.pos.x - cx, h.pos.z - cz) < 40)) continue;
+          const d = Math.hypot(cx - x, cz - z);
+          if (!best || d < best.d) best = { t, d, p: V(cx, t.y, cz) };
+        }
+        if (!best) return V(x, g.city.roofAt(x, z), z);
+        best.p.top = best.t;
+        return best.p;
+      },
       // ---- yieldable commands ----
       wait(t) { let e = 0; return { update(dt, rdt) { e += rdt; return e >= t; } }; },
       until(fn, label) { return { start() { if (label) S.objective = label; }, update: () => !!fn() }; },
@@ -319,7 +474,7 @@ export class Story {
         return {
           start() { S.ui.boss(b); S.objective = label || `Defeat ${b.name}`; if (o.endAt !== undefined) b.endAt = o.endAt; },
           update() { if (b.heads) return b.killed >= 4; return b.defeated || !b.alive; },
-          end() { S.ui.boss(null); },
+          end() { S.ui.boss(null); if (!b.heads && b.face) { b.face(pl.pos); pl.yaw = pl.yawVis = Math.atan2(b.pos.x - pl.pos.x, b.pos.z - pl.pos.z); } },
         };
       },
       choice(title, red, black) {

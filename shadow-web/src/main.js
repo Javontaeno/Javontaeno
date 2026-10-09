@@ -9,6 +9,8 @@ import { Player } from './player.js';
 import { Enemy, Encounters } from './enemies.js';
 import { HUD } from './hud.js';
 import { Actor, CAST } from './cast.js';
+import { Story } from './story/engine.js';
+import { loadSave, clearSave } from './story/save.js';
 import { SYM_U, applyArachnophobia } from './character.js';
 import { clamp } from './util.js';
 import { SETTINGS, saveSettings } from './settings.js';
@@ -88,6 +90,7 @@ class Game {
     this.player = new Player(this);
     this.encounters = new Encounters(this);
     this.hud = new HUD(this);
+    this.story = new Story(this);
     this.placePlayer();
     this.renderer.resize();
     this.menu = new MenuNav(this);
@@ -110,7 +113,7 @@ class Game {
     window.__game = this;
     window.__THREE = THREE;
     window.__Enemy = Enemy;
-    window.__Actor = Actor; window.__CAST = CAST;
+    window.__Actor = Actor; window.__CAST = CAST; window.__story = this.story;
   }
 
   placePlayer() {
@@ -288,15 +291,22 @@ class Game {
     this.audio.ui();
   }
 
-  start() {
+  // mode: 'new' story, 'continue' a saved story, or 'free' roam with every hive active
+  start(mode = 'free') {
     if (this.running) return;
     this.running = true;
     this.skipFrame = true;
+    this.mode = mode;
     document.getElementById('title').classList.add('hidden');
     this.hud.el.hud.classList.add('on');
     this.audio.init();
     if (!TEST && !this.input.usingPad) this.input.lock();
-    this.toast(`Destroy the <b>symbiote hives</b>. Hold ${glyph('swing', this.input.device)} in the air to swing.`, 6);
+    this.introCine = false; this.cam.cine = 0;
+    document.body.classList.toggle('campaign', mode !== 'free');
+    if (mode === 'new') { clearSave(); this.story.newGame(); }
+    else if (mode === 'continue') this.story.continueGame();
+    else this.toast(`Destroy the <b>symbiote hives</b>. Hold ${glyph('swing', this.input.device)} in the air to swing.`, 6);
+    if (mode === 'free') { this.introCine = true; this.cam.cine = 0.85; }
   }
 
   // ---------------------------------------------------------------------------
@@ -311,7 +321,7 @@ class Game {
     const screen = !this.running ? this.titleEl : this.victory ? this.victoryEl : this.paused ? this.pauseEl : null;
     this.menu.set(screen);
     if (screen) this.menu.update();
-    if (!this.running && inp.menu('start')) this.start();
+    if (!this.running && inp.menu('start')) this.start(loadSave() ? 'continue' : 'new');
 
     if (this.running && !this.paused) {
       if (this.skipFrame) this.skipFrame = false;
@@ -321,6 +331,7 @@ class Game {
         if (inp.pressed('mute')) { this.audio.setMuted(!this.audio.muted); this.refreshSettingLabels(); }
         if (inp.pressed('help')) this.hud.toggleHelp();
         if (inp.pressed('recenter')) this.cam.recenter(this.player.yawVis);
+        if (inp.pressed('callin')) this.story.callIn();
         if (!this.paused) this.step(rdt);
       }
     } else if (this.running && this.paused) {
@@ -353,6 +364,7 @@ class Game {
     pl.update(dt);
     if (this.introCine && pl.state !== 'perch') { this.introCine = false; this.cam.cine = 0; }
     for (const e of [...this.enemies]) e.update(dt);
+    this.story.update(dt, rdt);
     // combat awareness & spider-sense
     let inCombat = false, threat = false;
     for (const e of this.enemies) {
@@ -366,13 +378,15 @@ class Game {
       pl.sense = 1;
     }
     this.senseOn = threat;
-    this.encounters.update(dt);
+    if (!this.story.active) this.encounters.update(dt);
+    else if (this.story.hiveEvents) this.encounters.update(dt, true);
     const blockers = this._blk || (this._blk = []);
     blockers.length = 0;
-    if (pl.pos.y < 3) blockers.push({ x: pl.pos.x, z: pl.pos.z, r: 4 });
+    if (pl.pos.y < 3) blockers.push({ x: pl.pos.x, z: pl.pos.z, r: this.story.active ? 26 : 4 });
     for (const ev of this.encounters.events) if (ev.spawned && !ev.cleared && ev.pos.y < 1) blockers.push({ x: ev.pos.x, z: ev.pos.z, r: 22 });
     this.city.update(dt, blockers);
-    this.cam.update(rdt, pl, this.input.look(rdt));
+    if (this.story.camOv) { this.story.applyCamera(rdt); this.cam.focus.copy(pl.pos).setY(pl.pos.y + 1.5); }
+    else this.cam.update(rdt, pl, this.input.look(rdt));
     this.renderer.update(rdt, pl.pos);
     this.fx.update(dt, this.camera.position, pl.chestPos(_v).setY(pl.pos.y + 1.9), pl.sense);
     const u = this.renderer.fx.uniforms;
@@ -412,7 +426,13 @@ function boot() {
       if (+b.dataset.q !== q) location.reload();
     };
   });
-  document.getElementById('playBtn').onclick = () => game.start();
+  const cont = document.getElementById('continueBtn');
+  const save = loadSave();
+  if (save) { cont.style.display = ''; cont.textContent = save.done ? 'CONTINUE (POST-GAME)' : 'CONTINUE STORY'; }
+  cont.onclick = () => game.start('continue');
+  document.getElementById('playBtn').onclick = () => game.start('new');
+  document.getElementById('freeBtn').onclick = () => game.start('free');
+  document.getElementById('restartBtn').onclick = () => { game.story.restartMission(); game.resume(); };
   game.titleEl = title;
   game.pauseEl = document.getElementById('pause');
   game.victoryEl = document.getElementById('victory');
@@ -427,7 +447,8 @@ function boot() {
   // unlock audio on the first keyboard/mouse gesture too
   const unlock = () => { if (game.audio.ctx && game.audio.ctx.state === 'suspended') game.audio.ctx.resume(); };
   addEventListener('pointerdown', unlock); addEventListener('keydown', unlock);
-  if (TEST) game.start(); else title.classList.remove('hidden');
+  const tmode = params.get('mode');
+  if (TEST) game.start(tmode || 'free'); else title.classList.remove('hidden');
   game.run();
 }
 

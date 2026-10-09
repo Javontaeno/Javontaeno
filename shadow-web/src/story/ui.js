@@ -29,6 +29,7 @@ export class StoryUI {
     d.querySelector('.txt').textContent = '';
     d.querySelector('.skip').innerHTML = `${glyph('attack', this.g.input.device)} skip`;
     d.classList.add('on');
+    if (this.g.hud.helpVisible) this.g.hud.toggleHelp(false);
     this.typing = { text, i: 0, t: 0 };
   }
   updateTyping(dt) {

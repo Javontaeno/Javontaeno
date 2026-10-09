@@ -2,7 +2,7 @@
 
 An open-world web-swinging action game in the spirit of *Spider-Man: Web of Shadows*, built with three.js and bundled into **one self-contained `index.html`** (no server, no CDN, works offline).
 
-Open `shadow-web/index.html` in a desktop browser (Chrome, Edge or Firefox) and click **Play**.
+Open `shadow-web/index.html` in a desktop browser (Chrome, Edge or Firefox) and pick **New Story** (the campaign) or **Free Roam** (every symbiote hive active from the start). **Continue** appears once you have a save.
 
 ## What's in it
 
@@ -35,7 +35,54 @@ Open `shadow-web/index.html` in a desktop browser (Chrome, Edge or Firefox) and 
 - Wall-leaping symbiote crawlers that dodge light attacks, and armored symbiote brutes (break their guard).
 - Attack tokens keep groups fair, and committed attacks have hyper-armor.
 
-**Goal.** Destroy the 6 symbiote hives. Their infestation creeps across the buildings and streets around them. Street crimes, rooftop gangs and outbreaks spawn around the city for XP and levels.
+## Story mode
+
+A full campaign built on the console *Web of Shadows* plot, with original dialogue: 24 missions across a prologue, four acts and a finale, red/black choices with consequences, four endings and a Deadpool side story. Progress saves automatically at the start of each mission.
+
+- **Prologue — Nightfall:** Harlem, four days into the invasion. You're searching for Mary Jane when a masked stranger knocks you off a roof. Then the story jumps back to "four days earlier".
+- **Act 1 — The Symbiote:**
+  - Venom attacks the Daily Bugle. Halfway through the fight, the symbiote attaches to your suit and unlocks the black suit.
+  - You escort Mary Jane's ambulance to Metro General.
+  - You defend the hospital from both gangs, and Luke Cage joins.
+- **Act 2 — Harlem:**
+  - A turf war between the Rolling 7s and the Park Avenues.
+  - Training on the rooftops with Luke (launchers, air combos, perfect dodges, web-strikes).
+  - A parley that Kingpin's snipers try to turn into a massacre.
+  - **Choice:** talk both gangs down, or take them all out. Taking them out turns Luke cold for the rest of the game.
+- **Act 3 — The Kingpin:**
+  - Black Cat on top of Fisk Tower, with a **trust/threaten choice**.
+  - Kingpin sets **Rhino** on you. Bait his charge into a wall to stun him.
+  - Moon Knight joins, and you raid Kingpin's operations together.
+  - A rooftop fight with **Vulture**.
+  - At the Daily Bugle, the first infected civilians appear. A news helicopter frames you, the police turn on you, and the hives start to grow.
+- **Act 4 — The Invasion:**
+  - Wolverine fights you, then joins you.
+  - Venom seeds the city with pods, and Iron Man flies in to help.
+  - At the S.H.I.E.L.D. quarantine with Nick Fury and Black Widow, Electro attacks. Widow shoots him. **Choice:** reprimand her or back her up. Then his sister's symbiote takes him.
+  - A breakout at Ryker's to free the Tinkerer.
+  - **Choice:** answer S.H.I.E.L.D. and Moon Knight, or Kingpin's crew.
+  - **Symbiote Rhino.**
+  - At the church, the symbiote takes Wolverine. Nightcrawler rings the bells to free him.
+  - The prologue pays off: the masked attacker was **Deadpool**.
+  - Mary Jane, now a photographer, leads you to the hive queen: **symbiote Black Cat**.
+- **Finale:**
+  - **Choice:** destroy the symbiotes, or control them.
+  - Moon Knight or Vulture flies you to the Helicarrier, depending on your karma.
+  - You plant the device and fight a **five-headed Venom**. Destroy four heads.
+  - **Choice:** save Eddie Brock, or let him fall.
+- **Endings:** Red (Hero), Red/Black (Anti-hero), Black/Red (Anti-villain) and Black (Villain).
+- **Side story — "#1 Fan":** this unlocks after the Bugle mission (follow the red markers).
+  - Track a creepy superfan through graffiti, a cardboard cutout and a shrine.
+  - Catch him in a rooftop teleport chase.
+  - Team up with **Deadpool** against Kingpin's hit squad and **Shocker**.
+  - Finishing it changes how the Deadpool reveal plays out later.
+- **Ally call-ins:** press **X**, or **L3** on a controller.
+  - Red karma brings Luke Cage, Moon Knight, Wolverine or Nightcrawler.
+  - Black karma brings Black Cat, Vulture or Black Widow.
+  - Deadpool answers either way once you've earned him.
+- **Gold markers** lead to the next story mission and **red markers** to side missions. The karma meter sits under your health bar.
+
+**Free roam goal.** Destroy the 6 symbiote hives. Their infestation creeps across the buildings and streets around them. Street crimes, rooftop gangs and outbreaks spawn around the city for XP and levels.
 
 Audio (thwips, impacts, wind, sirens, and an adaptive combat score) is synthesized live with WebAudio. It is fully playable on Xbox, PlayStation and Switch controllers, and has an arachnophobia mode for enemies (see below).
 
@@ -55,6 +102,7 @@ Prompts on screen switch automatically to whatever you last touched: keyboard, X
 | Air web-zip dash | **Q** | RB | R1 |
 | Finisher (1 focus) | **F** | LT | L2 |
 | Switch suit / heal / web bomb / time of day | **R / H / G / T** | D-pad ↑ ↓ ← → | D-pad ↑ ↓ ← → |
+| Call an ally (story) | **X** | LS click | L3 |
 | Recenter camera | **V** | RS click | R3 |
 | Show controls | **I** | View | Create |
 | Pause & options | **Esc** | Menu | Options |
@@ -95,14 +143,22 @@ Source lives in `src/`:
 - `character.js`: rig, sculpted geometry, painted suits, pose library and keyframed moves.
 - `player.js`: traversal and combat.
 - `enemies.js`: AI and encounters.
+- `cast.js` and `accessories.js`: named characters (looks, costume pieces, ally AI).
+- `bosses.js`: data-driven bosses (Venom, Black Cat, Rhino, Vulture, Wolverine, Electro, Shocker, Deadpool, symbiote variants, the five-headed Venom).
+- `props.js`: set pieces (ambulance, gang cars, news and S.H.I.E.L.D. helicopters, quarantine camp, Helicarrier, shrine, billboards).
+- `story/`: the campaign.
+  - `engine.js` runs missions as generator scripts.
+  - `missions.js` has every mission, the endings and the side story.
+  - `ui.js` handles subtitles, choices and the boss bar.
+  - `save.js` handles saves.
 - `renderer.js`: sky, lighting, post-processing.
 - `input.js` and `controls.js`: keyboard, mouse and gamepad input, controller profiles, and button prompts.
 - `settings.js`: saved options.
 - `fx.js`, `audio.js`, `hud.js`, `camera.js`, `main.js`.
 
-URL options: `?q=0|1|2` forces low/medium/high quality. `?test` skips the title screen; it's used by automated playtests, and exposes `window.__game`.
+URL options: `?q=0|1|2` forces low/medium/high quality. `?test` skips the title screen; it's used by automated playtests, and exposes `window.__game` and `window.__story`. Add `&mode=new` to jump straight into the story.
 
 ## Notes
 
 - **Graphics.** It runs on WebGL2. Everything is procedural (no model or texture files), so it aims for a stylised, late-PS3/early-PS4 look rather than photorealism. If your frame rate drops, use **Low** quality.
-- **Name and characters.** This is a fan project. The game uses its own name, but the hero's suits are clearly Spider-Man-inspired. Keep it non-commercial.
+- **Name and characters.** This is an unofficial, non-commercial fan tribute. Spider-Man and every other Marvel character in it belong to Marvel. All dialogue is original, and every model is built procedurally in code. Keep it non-commercial.

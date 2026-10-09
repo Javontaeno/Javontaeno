@@ -20,6 +20,7 @@ const BIND = {
   mute: ['KeyM'],
   help: ['KeyI'],
   recenter: ['KeyV'],
+  callin: ['KeyX'],
   pause: ['Escape', 'KeyP'],
 };
 const MENU_KEYS = { up: ['ArrowUp', 'KeyW'], down: ['ArrowDown', 'KeyS'], left: ['ArrowLeft', 'KeyA'], right: ['ArrowRight', 'KeyD'], confirm: ['Enter', 'Space'], back: ['Escape', 'Backspace'] };

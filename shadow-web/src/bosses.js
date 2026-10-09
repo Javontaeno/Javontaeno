@@ -57,6 +57,35 @@ export const BOSSES = {
     M({ id: 'lunge', type: 'melee', lunge: 28, anim: 'leap', dur: 0.85, hit: 0.5, reach: 3.3, dmg: 16, range: [5, 16], cd: 2.4 }),
     M({ id: 'lash', type: 'line', fxk: 'tendril', anim: 'tendrilA', dur: 0.85, hit: 0.6, width: 1.2, dmg: 12, range: [4, 14], cd: 3 }),
   ] },
+  // Rhino: armoured, barely flinches; bait the charge into a wall to stun him.
+  rhino: { cast: 'rhino', hp: 1800, speed: 5.6, keep: 3.4, radius: 1.05, armorK: 260, xp: 650, moves: [
+    M({ id: 'gore', type: 'melee', anim: 'upper', dur: 0.9, hit: 0.45, reach: 3.8, dmg: 16, range: [0, 4.4], cd: 1.4, w: 3 }),
+    M({ id: 'stomp', type: 'aoe', anim: 'smash', dur: 1.25, hit: 0.7, radius: 6, dmg: 18, range: [0, 6], cd: 5.5, tele: true }),
+    M({ id: 'charge', type: 'charge', anim: 'surge', dur: 1.0, hit: 0.85, speed: 32, chargeT: 1.6, dmg: 24, stunT: 3.4, range: [6, 40], cd: 3.5, w: 3 }),
+    M({ id: 'hurl', type: 'proj', pk: 'rock', lob: true, count: 1, spread: 0, speed: 22, anim: 'smash', dur: 1.1, hit: 0.55, dmg: 16, range: [10, 40], cd: 5 }),
+  ] },
+  symrhino: { cast: 'symrhino', hp: 2000, speed: 6.4, keep: 3.2, radius: 1.05, armorK: 260, xp: 850, moves: [
+    M({ id: 'gore', type: 'melee', anim: 'upper', dur: 0.85, hit: 0.45, reach: 3.8, dmg: 17, range: [0, 4.4], cd: 1.3, w: 3 }),
+    M({ id: 'charge', type: 'charge', anim: 'surge', dur: 0.9, hit: 0.85, speed: 36, chargeT: 1.7, dmg: 26, stunT: 3.0, range: [6, 40], cd: 3, w: 3 }),
+    M({ id: 'spikes', type: 'spikes', anim: 'tendrilC', dur: 1.15, hit: 0.75, radius: 3.2, dmg: 16, range: [0, 26], cd: 3.8 }),
+    M({ id: 'lash', type: 'line', fxk: 'tendril', anim: 'tendrilA', dur: 0.9, hit: 0.62, width: 1.4, dmg: 13, range: [4, 16], cd: 3 }),
+    M({ id: 'call', type: 'summon', anim: 'surge', dur: 1.2, hit: 0.5, count: 2, minion: 'crawler', cd: 18, below: 0.7 }),
+  ] },
+  // Shocker: keeps his distance and fills the street with vibration blasts.
+  shocker: { cast: 'shocker', hp: 1250, speed: 6.4, keep: 9, xp: 550, moves: [
+    M({ id: 'blast', type: 'line', fxk: 'shock', anim: 'webShot', dur: 0.85, hit: 0.62, width: 1.4, dmg: 13, range: [3, 30], cd: 1.6, w: 3 }),
+    M({ id: 'quake', type: 'aoe', fxk: 'quake', anim: 'smash', dur: 1.3, hit: 0.7, radius: 7, dmg: 17, range: [0, 7], cd: 5.5, tele: true }),
+    M({ id: 'pulses', type: 'proj', pk: 'pulse', count: 3, spread: 0.22, speed: 20, anim: 'bomb', dur: 0.8, hit: 0.45, dmg: 9, range: [5, 30], cd: 3.5 }),
+    M({ id: 'hop', type: 'dash', away: true, anim: 'dodge', dur: 0.5, hit: 0.3, range: [0, 4], cd: 3.5 }),
+  ] },
+  // Deadpool (only if you never caught him on the rooftops): fast, cheap and chatty.
+  deadpool: { cast: 'deadpool', hp: 1100, speed: 8.6, keep: 2.4, evade: 0.3, xp: 500, moves: [
+    M({ id: 'slash', type: 'melee', anim: 'slash', dur: 0.55, hit: 0.55, reach: 3.0, dmg: 10, range: [0, 3.6], cd: 0.6, w: 4 }),
+    M({ id: 'spin', type: 'aoe', anim: 'spin', dur: 0.75, hit: 0.5, radius: 3.4, dmg: 13, range: [0, 3.8], cd: 3.5 }),
+    M({ id: 'guns', type: 'proj', pk: 'bullet', count: 4, spread: 0.07, speed: 60, anim: 'aim', dur: 0.8, hit: 0.5, dmg: 5, range: [5, 30], cd: 2.6 }),
+    M({ id: 'grenade', type: 'spikes', fxk: 'boom', anim: 'bomb', dur: 1.2, hit: 0.8, radius: 3.4, dmg: 15, range: [4, 22], cd: 5 }),
+    M({ id: 'poof', type: 'dash', anim: 'dodge', dur: 0.45, hit: 0.3, range: [0, 5], cd: 4, far: true, poof: true }),
+  ] },
   vulture: { cast: 'vulture', hp: 1150, speed: 9, fly: true, xp: 550, moves: [
     M({ id: 'dive', type: 'dive', anim: 'webStrike', dur: 1.7, hit: 0.55, dmg: 15, cd: 3.2, w: 2 }),
     M({ id: 'feathers', type: 'proj', pk: 'feather', count: 5, spread: 0.32, speed: 30, anim: 'bomb', dur: 0.9, hit: 0.45, dmg: 6, cd: 2.4, range: [0, 45] }),
@@ -72,11 +101,17 @@ class Projectiles {
       feather: new THREE.BoxGeometry(0.08, 0.02, 0.7),
       bolt: new THREE.SphereGeometry(0.28, 10, 8),
       goo: new THREE.SphereGeometry(0.45, 12, 10),
+      rock: new THREE.DodecahedronGeometry(0.9, 0),
+      pulse: new THREE.SphereGeometry(0.4, 14, 10),
+      bullet: new THREE.BoxGeometry(0.04, 0.04, 0.5),
     };
     this.mats = {
       feather: new THREE.MeshStandardMaterial({ color: 0x2c6a36, roughness: 0.7 }),
       bolt: new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 4.4, 1.4) }),
       goo: new THREE.MeshPhysicalMaterial({ color: 0x050407, roughness: 0.1, clearcoat: 1, emissive: 0x200008 }),
+      rock: new THREE.MeshStandardMaterial({ color: 0x6a6660, roughness: 0.95, flatShading: true }),
+      pulse: new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 1.8, 0.7), transparent: true, opacity: 0.55, depthWrite: false }),
+      bullet: new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 4, 2) }),
     };
   }
   fire(kind, from, vel, dmg) {
@@ -92,11 +127,14 @@ class Projectiles {
       p.life -= dt;
       p.m.position.addScaledVector(p.vel, dt);
       if (p.kind === 'bolt') this.g.fx.add.emit(p.m.position, 1, { speed: 1, color: [4, 3.5, 1], life: 0.2, size: 0.25, gravity: 0 });
-      if (p.kind === 'goo') { p.vel.y -= 14 * dt; }
-      const hit = pl.chestPos(_v2).distanceTo(p.m.position) < (p.kind === 'goo' ? 1.4 : 1.0);
+      if (p.kind === 'goo' || p.kind === 'rock') { p.vel.y -= 14 * dt; }
+      if (p.kind === 'rock') { p.m.rotation.x += dt * 5; p.m.rotation.z += dt * 3; }
+      if (p.kind === 'pulse') { const k = 1 + Math.sin(p.life * 30) * 0.15; p.m.scale.setScalar(k); }
+      const hit = pl.chestPos(_v2).distanceTo(p.m.position) < (p.kind === 'goo' || p.kind === 'rock' ? 1.5 : 1.0);
       if (hit) { pl.hurt(p.dmg, p.m.position); p.life = 0; }
       if (p.m.position.y < this.g.city.groundAt(p.m.position.x, p.m.position.z, p.m.position.y + 1)) {
         p.life = 0;
+        if (p.kind === 'rock') { this.g.fx.add.emit(p.m.position, 18, { speed: 7, up: 3, color: [0.5, 0.45, 0.4], life: 0.6, size: 0.3, gravity: 14 }); this.g.cam.shake(0.2); if (pl.pos.distanceTo(p.m.position) < 3.5) pl.hurt(p.dmg, p.m.position); }
         if (p.kind === 'goo') { this.g.fx.dark.emit(p.m.position, 20, { speed: 6, up: 3, color: [0.02, 0.01, 0.02], life: 0.6, size: 0.25 }); if (pl.pos.distanceTo(p.m.position) < 3) pl.hurt(p.dmg, p.m.position); }
       }
     }
@@ -115,7 +153,7 @@ export class Boss extends Enemy {
     const c = CAST[def.cast];
     const sym = !!(c.look && c.look.symbiote);
     super(game, 'brute', pos, null, {
-      look: { ...c.look, build: c.build, seed: 900 },
+      look: { ...c.look, build: c.build, seed: 900 }, lookExact: true,
       hp: def.hp,
       cfg: { kind: sym ? 'brute' : 'thug', heavy: true, radius: def.radius || 0.6, xp: def.xp || 400, ranged: false, blocks: 0, evade: 0, leap: false },
     });
@@ -148,6 +186,8 @@ export class Boss extends Enemy {
     this.char.setFlash(this.flashT > 0 ? 0.18 : 0);
     this.armorBroken = Math.max(0, this.armorBroken - dt);
     this.armor = Math.max(0, this.armor - dt * 25);
+    this.dazed = Math.max(0, (this.dazed || 0) - dt);
+    if (this.dazed > 0 && Math.random() < 0.25) { const a = this.t * 6; g.fx.add.emit(_v2.set(this.pos.x + Math.cos(a) * 0.5, this.pos.y + 2.4 * this.scale, this.pos.z + Math.sin(a) * 0.5), 1, { speed: 0.3, color: [3, 2.6, 0.8], life: 0.4, size: 0.12, gravity: 0 }); }
     this.lastHurt += dt;
     for (const k in this.cds) this.cds[k] -= dt;
     if (this.def.regen && this.lastHurt > 2.5 && !this.defeated && this.hp > 0) this.hp = Math.min(this.maxHp, this.hp + this.def.regen * dt);
@@ -166,6 +206,9 @@ export class Boss extends Enemy {
       return;
     }
     if (this.flying && !this.grounded) { this.flyAI(dt, pl, toP, dH); this.animate(dt); return; }
+    // knocked off a rooftop (or left behind on one)? climb back to the fight
+    if (!this.flying && this.state !== 'air' && Math.abs(dy) > 8 && pl.state === 'ground') this.apart = (this.apart || 0) + dt; else this.apart = 0;
+    if (this.apart > 3) this.rejoin(pl);
 
     switch (this.state) {
       case 'idle': case 'circle': case 'chase': {
@@ -196,6 +239,21 @@ export class Boss extends Enemy {
     this.animate(dt);
   }
 
+  rejoin(pl) {
+    const g = this.game;
+    this.apart = 0;
+    for (let a = 0; a < 16; a++) {
+      const ang = a * 0.8, x = pl.pos.x + Math.cos(ang) * 7, z = pl.pos.z + Math.sin(ang) * 7;
+      const gy = g.city.groundAt(x, z, pl.pos.y + 1);
+      if (Math.abs(gy - pl.pos.y) > 0.6 || g.city.pointInBox(_v2.set(x, gy + 1, z), 0.4)) continue;
+      g.fx.dark.emit(this.chest(_v2), 30, { speed: 5, up: 3, color: [0.03, 0.03, 0.04], life: 0.7, size: 0.35 });
+      this.pos.set(x, gy, z); this.vel.set(0, 0, 0); this.setState('idle');
+      g.fx.dark.emit(this.chest(_v2), 30, { speed: 5, up: 3, color: [0.03, 0.03, 0.04], life: 0.7, size: 0.35 });
+      g.audio.land(true);
+      return;
+    }
+  }
+
   pickMove(dH, dy) {
     const opts = this.def.moves.filter((m) => this.cds[m.id] <= 0 && dH >= m.range[0] && dH <= m.range[1] && Math.abs(dy) < 6 && (!m.below || this.hp < this.maxHp * m.below));
     if (!opts.length) return null;
@@ -218,8 +276,59 @@ export class Boss extends Enemy {
     if (m.type === 'summon') g.audio.screech();
   }
 
+  // Rhino's charge: wind up, lock a direction, then run until he hits you, a wall, a ledge or runs out of steam.
+  runCharge(dt, toP, dH, faceP) {
+    const g = this.game, pl = g.player, m = this.move, hitT = m.dur * m.hit;
+    if (this.t < hitT) {
+      this.targetsPlayer = true;
+      this.threatT = hitT - this.t;
+      if (this.t < hitT - 0.35) faceP(8);
+      else if (!this.chargeDir) {
+        this.chargeDir = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
+        const a = this.pos.clone().setY(this.pos.y + 0.2);
+        g.fx.line(a, a.clone().addScaledVector(this.chargeDir, 26), 0xff3030, 0.4, 0.12);
+        g.audio.screech();
+      }
+      return;
+    }
+    if (!this.chargeDir) this.chargeDir = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
+    this.threatT = -1;
+    const run = this.t - hitT;
+    const sp = m.speed * Math.min(1, run * 4) * (run > m.chargeT - 0.3 ? Math.max(0, (m.chargeT - run) / 0.3) : 1);
+    const d = this.chargeDir;
+    const nx = this.pos.x + d.x * sp * dt, nz = this.pos.z + d.z * sp * dt;
+    this.moving = sp;
+    this.charging = true;
+    if (Math.random() < 0.5) g.fx.add.emit(this.pos, 2, { speed: 3, up: 1, color: [0.45, 0.42, 0.38], life: 0.5, size: 0.35, gravity: 2 });
+    // trample anything in the way
+    for (const e of g.enemies) {
+      if (e === this || !e.alive || e.isBoss || e.trampled) continue;
+      if (e.pos.distanceTo(this.pos) < 2.4) { e.trampled = true; e.takeHit({ dmg: 30, kb: 14, knock: true, up: 6, heavy: true }, d, null); }
+    }
+    if (!this.didHit && Math.hypot(pl.pos.x - this.pos.x, pl.pos.z - this.pos.z) < 2.2 && Math.abs(pl.pos.y - this.pos.y) < 2.5) {
+      this.didHit = true;
+      if (!this.perfectDodged && pl.hurt(m.dmg, this.pos)) { pl.vel.addScaledVector(d, 14); pl.vel.y += 5; g.cam.shake(0.6); g.rumble(1, 0.8, 350); }
+    }
+    const end = () => { this.charging = false; this.chargeDir = null; this.cds[m.id] = m.cd; this.move = null; this.threatT = -1; this.targetsPlayer = false; for (const e of g.enemies) e.trampled = false; };
+    const test = _v3.set(nx + d.x * 0.6, this.pos.y + 1.2 * this.scale, nz + d.z * 0.6);
+    if (g.city.collide(test, this.radius, _v2) && Math.abs(_v2.y) < 0.4) {
+      // slammed into a wall: dazed and wide open
+      g.fx.ring(this.pos, 7, 0.5); g.fx.add.emit(test, 40, { speed: 10, up: 4, color: [0.55, 0.5, 0.45], life: 0.9, size: 0.35, gravity: 14 });
+      g.audio.boom(); g.cam.shake(0.8); g.rumble(0.9, 0.9, 400);
+      end();
+      this.setState('stagger'); this.stun = m.stunT; this.armorBroken = m.stunT; this.dazed = m.stunT;
+      g.hud.flashText(`${this.name.toUpperCase()} STUNNED`, '#ffd36a');
+      return;
+    }
+    const gy = g.city.groundAt(nx, nz, this.pos.y + 1);
+    if (Math.abs(gy - this.pos.y) > 1.2 || run >= m.chargeT) { end(); this.setState('idle'); return; }
+    this.pos.x = nx; this.pos.z = nz; this.pos.y = gy;
+    this.yaw = Math.atan2(d.x, d.z);
+  }
+
   runMove(dt, toP, dH, dy, faceP) {
     const g = this.game, pl = g.player, m = this.move;
+    if (m.type === 'charge') return this.runCharge(dt, toP, dH, faceP);
     const sm = this.speedMul();
     const T = m.dur / sm, hitT = m.hit * T;
     this.targetsPlayer = m.type !== 'summon' && m.type !== 'dash';
@@ -251,7 +360,8 @@ export class Boss extends Enemy {
         break;
       }
       case 'aoe': {
-        if (m.fxk === 'storm') { for (let i = 0; i < 10; i++) { const a = (i / 10) * 6.28; g.fx.lightning(chest, _v2.set(this.pos.x + Math.cos(a) * m.radius, this.pos.y + 0.3, this.pos.z + Math.sin(a) * m.radius), 0.3); } g.audio.boom(); }
+        if (m.fxk === 'quake') { for (let i = 0; i < 3; i++) g.fx.ring(this.pos, m.radius * (0.5 + i * 0.35), 0.4 + i * 0.12, [2.4, 1.8, 0.6]); g.audio.boom(); }
+        else if (m.fxk === 'storm') { for (let i = 0; i < 10; i++) { const a = (i / 10) * 6.28; g.fx.lightning(chest, _v2.set(this.pos.x + Math.cos(a) * m.radius, this.pos.y + 0.3, this.pos.z + Math.sin(a) * m.radius), 0.3); } g.audio.boom(); }
         else { g.fx.ring(this.pos, m.radius + 2, 0.45, this.def.cast === 'venom' ? [2, 0.3, 0.6] : undefined); g.fx.dark.emit(this.pos, 25, { speed: 8, up: 3, color: [0.03, 0.02, 0.02], life: 0.6, size: 0.25 }); g.audio.land(true); }
         g.cam.shake(dH < 12 ? 0.35 : 0.1);
         if (!dodged && dH < m.radius && Math.abs(dy) < 3) pl.hurt(m.dmg, this.pos);
@@ -263,6 +373,11 @@ export class Boss extends Enemy {
         b.copy(a).addScaledVector(dir, Math.max(len, 14));
         if (m.fxk === 'lightning') { g.fx.lightning(a, b, 0.18); g.audio.gun(dH); }
         else if (m.fxk === 'tendril') { g.fx.tendril(a, b, 0.3); g.audio.thwip(true); }
+        else if (m.fxk === 'shock') {
+          // vibration blast: rings rippling down the line
+          for (let i = 1; i < 8; i++) { const q = a.clone().lerp(b, i / 8); g.fx.ring(q.setY(q.y - 1.2), 1.4 + i * 0.12, 0.3, [2.4, 1.8, 0.6]); }
+          g.fx.line(a, b, 0xffd27a, 0.15, 0.08); g.audio.boom(); g.cam.shake(0.15);
+        }
         else { g.fx.line(a, b, 0x111111, 0.25, 0.02); g.audio.whoosh(false); }
         // distance from the player's chest to the attack segment
         const pc = pl.chestPos(new THREE.Vector3());
@@ -274,6 +389,14 @@ export class Boss extends Enemy {
       case 'proj': {
         const P2 = projectiles(g);
         const from = this.char.handWorld('R', new THREE.Vector3());
+        if (m.lob) {
+          // arc the throw so it lands where the player is standing
+          const v = pl.pos.clone().sub(from);
+          const flat = Math.hypot(v.x, v.z), T = Math.max(0.7, flat / m.speed);
+          P2.fire(m.pk, from.clone().setY(from.y + 0.6), new THREE.Vector3(v.x / T, v.y / T + 7 * T, v.z / T), dodged ? 0 : m.dmg);
+          g.audio.whoosh(true);
+          break;
+        }
         for (let i = 0; i < m.count; i++) {
           const target = pl.chestPos(new THREE.Vector3()).addScaledVector(pl.vel, 0.3);
           const d = target.sub(from).normalize();
@@ -286,6 +409,13 @@ export class Boss extends Enemy {
       }
       case 'spikes': {
         const p = this.spikePt;
+        if (m.fxk === 'boom') {
+          g.fx.add.emit(p.clone().setY(p.y + 0.5), 60, { speed: 10, up: 4, color: [4, 2, 0.6], color2: [2, 0.6, 0.2], life: 0.5, size: 0.3 });
+          g.fx.dark.emit(p, 30, { speed: 6, up: 5, color: [0.08, 0.07, 0.06], life: 1, size: 0.5, gravity: -1 });
+          g.fx.ring(p, m.radius + 2, 0.4, [3, 1.6, 0.4]); g.audio.boom(); g.cam.shake(0.3);
+          if (!dodged && pl.pos.distanceTo(p) < m.radius) pl.hurt(m.dmg, p);
+          break;
+        }
         for (let i = 0; i < 7; i++) {
           const a = (i / 7) * 6.28;
           g.fx.tendril(_v2.set(p.x + Math.cos(a) * 0.5, p.y - 0.3, p.z + Math.sin(a) * 0.5), new THREE.Vector3(p.x + Math.cos(a) * 1.2, p.y + 2.5 + Math.random(), p.z + Math.sin(a) * 1.2), 0.35);
@@ -317,8 +447,10 @@ export class Boss extends Enemy {
         else { const d = _v2.copy(this.pos).sub(g.player.pos).setY(0).normalize(); dest = this.pos.clone().addScaledVector(d, 6 * (away || 1)); }
         dest.y = g.city.groundAt(dest.x, dest.z, this.pos.y + 1);
         if (Math.abs(dest.y - this.pos.y) < 1.5 && !g.city.pointInBox(_v2.copy(dest).setY(dest.y + 0.9), 0.2)) {
-          if (m.far) g.fx.lightning(this.chest(new THREE.Vector3()), dest.clone().setY(dest.y + 1.2), 0.2);
+          if (m.poof) { g.fx.dark.emit(this.chest(new THREE.Vector3()), 24, { speed: 4, up: 1.5, color: [0.22, 0.03, 0.03], life: 0.9, size: 0.45, gravity: -1 }); g.audio.tone({ freq: 180, to: 90, type: 'sawtooth', dur: 0.14, gain: 0.08 }); }
+          else if (m.far) g.fx.lightning(this.chest(new THREE.Vector3()), dest.clone().setY(dest.y + 1.2), 0.2);
           this.pos.copy(dest);
+          if (m.poof) g.fx.dark.emit(this.chest(new THREE.Vector3()), 24, { speed: 4, up: 1.5, color: [0.22, 0.03, 0.03], life: 0.9, size: 0.45, gravity: -1 });
         }
         break;
       }
@@ -431,11 +563,12 @@ export class Boss extends Enemy {
     if (spec.ally) dmg *= 0.5;
     if (this.flying && !this.grounded) { dmg *= 0.75; this.airHits++; if (this.airHits >= 5) this.groundMe(3.5); }
     if (this.grounded) dmg *= 1.25;
+    if (this.dazed > 0) dmg *= 1.4;
     this.hp -= dmg;
     this.flashT = 0.06;
     this.lastHurt = 0;
     this.armor += dmg;
-    if (this.armor > 140 && !this.armorBroken && this.state !== 'move') { this.armorBroken = 3; this.armor = 0; this.setState('stagger'); this.stun = 1.4; g.hud.flashText('STAGGERED', '#ffb070'); }
+    if (this.armor > (this.def.armorK || 140) && !this.armorBroken && this.state !== 'move') { this.armorBroken = 3; this.armor = 0; this.setState('stagger'); this.stun = 1.4; g.hud.flashText('STAGGERED', '#ffb070'); }
     const floor = this.endAt * this.maxHp;
     if (this.endAt > 0 && this.hp <= floor) {
       this.hp = floor;
@@ -448,7 +581,7 @@ export class Boss extends Enemy {
     if (this.hp <= 0) { this.hp = 0; this.ko(dir, spec); return true; }
     if (this.armorBroken > 0 || this.grounded > 0) {
       if (spec.knock && this.state !== 'down') { this.setState('down'); }
-      else if (this.state !== 'down') { this.setState('stagger'); this.stun = 0.35; }
+      else if (this.state !== 'down') { this.setState('stagger'); this.stun = this.dazed > 0 ? this.dazed : 0.35; }
     } else if (this.state !== 'move') this.vel.addScaledVector(dir, (spec.kb || 2) * 0.25);
     return true;
   }
@@ -462,8 +595,12 @@ export class Boss extends Enemy {
       p.set('arL', -0.3, 0, 1.15).set('arR', -0.3, 0, -1.15);
       if (this.state === 'move' && this.move) { evalAction(this.tgt, p, ACT[this.move.anim], Math.min(1, this.t / this.move.dur)); p.copy(this.tgt); }
     } else switch (this.state) {
-      case 'move': P.stance(p, t); evalAction(this.tgt, p, ACT[this.move.anim], Math.min(1, this.t / (this.move.dur / this.speedMul()))); p.copy(this.tgt); k = 22; break;
-      case 'stagger': P.hit(p, 1); k = 18; break;
+      case 'move':
+        if (this.charging) { this.phase += dt * 16; P.run(p, this.phase, 1, 1); p.set('spine', 0.45, 0, 0).set('head', -0.3, 0, 0); k = 18; break; }
+        P.stance(p, t); evalAction(this.tgt, p, ACT[this.move.anim], Math.min(1, this.t / (this.move.dur / this.speedMul()))); p.copy(this.tgt); k = 22; break;
+      case 'stagger':
+        if (this.dazed > 0) { P.idle(p, t); p.set('spine', 0.35, Math.sin(t * 3) * 0.2, Math.sin(t * 2.3) * 0.15).set('head', 0.4, Math.sin(t * 4) * 0.3, 0); k = 6; break; }
+        P.hit(p, 1); k = 18; break;
       case 'down': case 'air': P.down(p); k = 10; break;
       case 'getup': P.idle(p, t); evalAction(this.tgt, p, ACT.getup, Math.min(1, this.t / 0.7)); p.copy(this.tgt); break;
       case 'beaten': P.land(p, 0.85); p.set('head', 0.4, 0, 0); k = 6; break;
@@ -554,7 +691,11 @@ export class VenomHydra {
       game.enemies.push(h);
     }
     this.attackCd = 2.5;
-    this.facing = 0;
+    // rise already facing the player, heads fanned out
+    const pl = game.player.pos;
+    this.facing = Math.atan2(pl.x - pos.x, pl.z - pos.z);
+    const f = new THREE.Vector3(Math.sin(this.facing), 0, Math.cos(this.facing)), side = new THREE.Vector3(f.z, 0, -f.x);
+    for (const h of this.heads) h.pos.copy(this.body.position).addScaledVector(side, Math.sin(h.restAng) * 9).addScaledVector(f, 2 + Math.cos(h.restAng) * 3).setY(this.body.position.y + 9);
     this.t = 0;
   }
   get alive() { return !this.defeated; }

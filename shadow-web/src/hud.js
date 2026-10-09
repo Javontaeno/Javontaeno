@@ -107,8 +107,20 @@ export class HUD {
       const d = ev.pos.distanceTo(p.pos);
       if (d < nd) { nd = d; near = ev; }
     }
-    el.obj.innerHTML = `<b>SYMBIOTE INFESTATION</b> <span class="pct">${pct}%</span><div class="ibar"><i style="width:${pct}%"></i></div>` +
-      (near ? `<div class="sub">${near.label} &middot; ${Math.round(nd)}m</div>` : '');
+    const st = g.story;
+    const hivesOn = hives.some((h) => h.active && h.alive);
+    if (st && st.campaign) {
+      // story objective first; the infestation meter only once the hives are out
+      let html = st.objective ? `<div class="story">${st.objective}</div>` : '';
+      if (hivesOn && !st.gen) html += `<div style="margin-top:6px"><b>SYMBIOTE INFESTATION</b> <span class="pct">${pct}%</span><div class="ibar"><i style="width:${pct}%"></i></div></div>`;
+      if (!st.gen && near) html += `<div class="sub">${near.label} &middot; ${Math.round(nd)}m</div>`;
+      if (st.callCd > 0 && !st.cine) html += `<div class="call">ALLY ${Math.ceil(st.callCd)}s</div>`;
+      if (html !== this.objHtml) { el.obj.innerHTML = html; this.objHtml = html; }
+    } else {
+      const html = `<b>SYMBIOTE INFESTATION</b> <span class="pct">${pct}%</span><div class="ibar"><i style="width:${pct}%"></i></div>` +
+        (near ? `<div class="sub">${near.label} &middot; ${Math.round(nd)}m</div>` : '');
+      if (html !== this.objHtml) { el.obj.innerHTML = html; this.objHtml = html; }
+    }
 
     // timers
     this.toastT -= dt; this.flashT -= dt;
@@ -170,21 +182,25 @@ export class HUD {
     }
     for (let k = bi; k < this.barEls.length; k++) this.barEls[k].style.display = 'none';
 
-    // waypoint markers (clamped to screen edges)
-    const evs = g.encounters.events.filter((e) => !e.cleared).map((e) => ({ e, d: e.pos.distanceTo(p.pos) })).sort((a1, b1) => a1.d - b1.d).slice(0, 4);
+    // waypoint markers (clamped to screen edges): story objective and side missions first, then crimes and hives
+    const st = g.story;
+    const story = st && st.campaign && !st.cine ? st.markers().map((m) => ({ e: { pos: m.pos, type: m.kind === 'side' ? 'side' : 'story', name: m.label, up: 2.5 }, d: m.pos.distanceTo(p.pos) })) : [];
+    const crimes = st && st.gen ? [] : g.encounters.events.filter((e) => !e.cleared && (e.type !== 'hive' || e.hive.active)).map((e) => ({ e, d: e.pos.distanceTo(p.pos) })).sort((a1, b1) => a1.d - b1.d).slice(0, 4);
+    const evs = story.concat(crimes);
     evs.forEach(({ e, d }, i) => {
       let m = this.markerEls[i];
-      if (!m) { m = document.createElement('div'); m.className = 'marker'; m.innerHTML = '<span class="dia"></span><span class="lbl"></span>'; el.markers.appendChild(m); this.markerEls.push(m); }
-      const wp = e.pos.clone(); wp.y += 4;
+      if (!m) { m = document.createElement('div'); m.className = 'marker'; m.innerHTML = '<span class="dia"></span><span class="nm"></span><span class="lbl"></span>'; el.markers.appendChild(m); this.markerEls.push(m); }
+      const wp = e.pos.clone(); wp.y += e.up ?? 4;
       this.project(wp, o);
       let x = o.x, y = o.y;
       const W = innerWidth, H = innerHeight, mg = 40;
       if (o.behind) { x = W - x; y = H - mg; }
       const clamped = x < mg || x > W - mg || y < mg || y > H - mg || o.behind;
       x = clamp(x, mg, W - mg); y = clamp(y, mg + 30, H - mg);
-      m.style.display = d < 18 ? 'none' : 'block';
+      m.style.display = d < (e.name !== undefined ? 6 : 18) ? 'none' : 'block';
       m.style.transform = `translate(${x}px, ${y}px) translate(-50%,-50%)`;
       m.className = `marker ${e.type}${clamped ? ' edge' : ''}`;
+      m.children[1].textContent = e.name || '';
       m.lastChild.textContent = `${Math.round(d)}m`;
     });
     for (let k = evs.length; k < this.markerEls.length; k++) this.markerEls[k].style.display = 'none';
@@ -205,9 +221,16 @@ export class HUD {
     ctx.scale(zoom, zoom);
     ctx.translate(-this.X(p.pos.x), -this.Z(p.pos.z));
     ctx.drawImage(this.map, 0, 0);
+    // story markers
+    const st = g.story;
+    if (st && st.campaign) for (const m of st.markers()) {
+      ctx.fillStyle = m.kind === 'side' ? '#ff3b3b' : '#ffd36a';
+      ctx.save(); ctx.translate(this.X(m.pos.x), this.Z(m.pos.z)); ctx.rotate(Math.PI / 4);
+      ctx.fillRect(-7, -7, 14, 14); ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.strokeRect(-7, -7, 14, 14); ctx.restore();
+    }
     // events
     for (const ev of g.encounters.events) {
-      if (ev.cleared) continue;
+      if (ev.cleared || (ev.type === 'hive' && !ev.hive.active)) continue;
       const col = ev.type === 'hive' ? '#ff2a4a' : ev.type === 'outbreak' ? '#b06bff' : '#ffc23d';
       ctx.fillStyle = col;
       ctx.beginPath(); ctx.arc(this.X(ev.pos.x), this.Z(ev.pos.z), ev.type === 'hive' ? 7 : 5, 0, Math.PI * 2); ctx.fill();

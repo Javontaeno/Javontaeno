@@ -63,7 +63,7 @@ export class Enemy {
     if (this.cfg.suit) look = { ...look, jacket: '#141418', topKind: 'suit', tie: '#1a1a1a', shirt: '#e8e8e8', pants: '#141418', shoe: '#0c0c0c', hat: null, stripe: null, mask: null };
     if (type === 'assassin') look = { ...look, jacket: '#2a2d33', topKind: 'body', pattern: 'armor', accent: '#b0161c', mask: 'visor', gloves: '#141416', boots: '#141416', hat: null, stripe: null, acc: ['visor', 'rifle'] };
     if (opts.gang && GANGS[opts.gang]) look = { ...look, ...GANGS[opts.gang], mask: r() < 0.5 ? 'bandana' : null, hat: null };
-    if (opts.look) look = { ...look, ...opts.look };
+    if (opts.look) look = opts.lookExact ? { seed: this.id, ...opts.look } : { ...look, ...opts.look };
     if (this.cfg.build) look.build = look.build || this.cfg.build;
     this.char = new Character(this.cfg.kind, look);
     game.scene.add(this.char.root);
@@ -112,10 +112,12 @@ export class Enemy {
   }
 
   setState(s) { this.state = s; this.t = 0; }
+  face(p) { this.yaw = Math.atan2(p.x - this.pos.x, p.z - this.pos.z); }
 
   // ------------------------------------------------------------------------
   update(dt) {
     const g = this.game, pl = g.player;
+    if (g.story && g.story.cine) { this.releaseToken(); this.physics(dt); this.animate(dt); return; }
     this.t += dt;
     this.flashT = Math.max(0, this.flashT - dt);
     this.char.setFlash(this.flashT > 0 ? 0.16 : 0);
@@ -693,13 +695,14 @@ export class Encounters {
     ev.spawned = false;
   }
 
-  update(dt) {
+  // hivesOnly: during story missions only the hives keep spawning guards
+  update(dt, hivesOnly = false) {
     const g = this.game, P = g.player.pos;
     this.spawnT -= dt;
     const crimes = this.events.filter((e) => e.type !== 'hive' && !e.cleared).length;
-    if (crimes < 2 && this.spawnT <= 0) { this.createEvent(); this.spawnT = 5; }
+    if (!hivesOnly && crimes < 2 && this.spawnT <= 0) { this.createEvent(); this.spawnT = 5; }
     for (const ev of this.events) {
-      if (ev.cleared) continue;
+      if (ev.cleared || (hivesOnly && ev.type !== 'hive')) continue;
       if (ev.type === 'hive' && !ev.hive.active) { if (ev.spawned) this.despawn(ev); continue; }
       const d = Math.hypot(ev.pos.x - P.x, ev.pos.z - P.z);
       if (!ev.spawned && d < 125 && g.enemies.length < 22) this.spawn(ev);

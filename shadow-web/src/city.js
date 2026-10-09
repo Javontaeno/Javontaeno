@@ -954,6 +954,16 @@ export class City {
     return b;
   }
 
+  removeBox(b) {
+    const C = this.cell;
+    for (let gx = Math.floor(b.x0 / C); gx <= Math.floor(b.x1 / C); gx++)
+      for (let gz = Math.floor(b.z0 / C); gz <= Math.floor(b.z1 / C); gz++) {
+        const key = gx * 100003 + gz;
+        const arr = this.grid.get(key); if (arr) { const i = arr.indexOf(b); if (i >= 0) arr.splice(i, 1); }
+        const t = this.topsGrid.get(key); if (t && b.top) { const i = t.indexOf(b.top); if (i >= 0) t.splice(i, 1); }
+      }
+  }
+
   // Wake the symbiote hives (the story spreads the infestation over time).
   setHives(active, instant = false) {
     for (const h of this.hives) {

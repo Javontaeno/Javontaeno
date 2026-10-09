@@ -196,8 +196,10 @@ export class Helicarrier {
     // collision: deck, hull sides, control tower
     const c = game.city;
     this.deckY = pos.y + 0.5;
-    c.addBox({ x0: pos.x - W / 2, y0: pos.y - H, z0: pos.z - Lh / 2, x1: pos.x + W / 2, y1: this.deckY, z1: pos.z + Lh / 2, kind: 'bridge' });
-    c.addBox({ x0: pos.x + W / 2 - 12, y0: this.deckY, z0: pos.z - 35, x1: pos.x + W / 2 - 2, y1: this.deckY + 26, z1: pos.z - 5, kind: 'bld' });
+    this.boxes = [
+      c.addBox({ x0: pos.x - W / 2, y0: pos.y - H, z0: pos.z - Lh / 2, x1: pos.x + W / 2, y1: this.deckY, z1: pos.z + Lh / 2, kind: 'bridge' }),
+      c.addBox({ x0: pos.x + W / 2 - 12, y0: this.deckY, z0: pos.z - 35, x1: pos.x + W / 2 - 2, y1: this.deckY + 26, z1: pos.z - 5, kind: 'bld' }),
+    ];
     this.pos = pos.clone();
     this.bow = new THREE.Vector3(pos.x, this.deckY, pos.z + Lh / 2 - 20);
     this.stern = new THREE.Vector3(pos.x, this.deckY, pos.z - Lh / 2 + 15);
@@ -205,6 +207,47 @@ export class Helicarrier {
     this.t = 0;
   }
   update(dt) { this.t += dt; for (const r of this.rotors) r.rotation.y += dt * 6; }
+  remove() { this.group.removeFromParent(); for (const b of this.boxes) this.game.city.removeBox(b); }
+}
+
+// Flat painted props: graffiti, notes, newspaper pages, a cardboard cutout's sign.
+export class Billboard {
+  constructor(game, text, pos, rotY = 0, w = 6, h = 2, o = {}) {
+    this.game = game;
+    const c = document.createElement('canvas'); c.width = 512; c.height = Math.round(512 * h / w);
+    const g = c.getContext('2d');
+    if (o.bg) { g.fillStyle = o.bg; g.fillRect(0, 0, c.width, c.height); }
+    g.fillStyle = o.color || '#ff2a3a';
+    g.font = o.font || `bold ${Math.round(c.height * 0.55)}px Impact, Arial Black, sans-serif`;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    const lines = String(text).split('\n');
+    lines.forEach((ln, i) => g.fillText(ln, c.width / 2, c.height * ((i + 0.5) / lines.length), c.width * 0.94));
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    const mat = o.glow ? new THREE.MeshBasicMaterial({ map: t, transparent: true, color: new THREE.Color(o.glow, o.glow, o.glow) }) : new THREE.MeshStandardMaterial({ map: t, transparent: true, roughness: 0.9 });
+    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+    this.mesh.position.copy(pos); this.mesh.rotation.y = rotY;
+    game.scene.add(this.mesh);
+  }
+  remove() { this.mesh.removeFromParent(); }
+}
+
+// A little roadside shrine: candles and photos, flickering.
+export class Shrine {
+  constructor(game, pos) {
+    this.game = game;
+    const g = (this.group = new THREE.Group()); g.position.copy(pos);
+    box(1.6, 0.8, 0.8, std(0x3a2a1c), 0, 0.4, 0, g);
+    this.flames = [];
+    for (let i = 0; i < 7; i++) {
+      const x = -0.6 + i * 0.2, z = (i % 2) * 0.2 - 0.1;
+      box(0.06, 0.18, 0.06, std(0xf2eedd), x, 0.89, z, g);
+      this.flames.push(box(0.04, 0.07, 0.04, glow(6, 3.2, 0.8), x, 1.02, z, g));
+    }
+    for (let i = 0; i < 4; i++) { const p = box(0.32, 0.42, 0.02, std(0xffffff, { map: textTex('SPIDEY', 128, 128, '#c41a1a', '#1a2a6a') }), -0.6 + i * 0.4, 1.25, -0.35, g); p.rotation.z = (i - 1.5) * 0.12; }
+    game.scene.add(g);
+    this.t = 0;
+  }
+  update(dt) { this.t += dt; this.flames.forEach((f, i) => { const k = 0.8 + Math.sin(this.t * 13 + i * 2.1) * 0.25; f.scale.set(1, k, 1); }); }
   remove() { this.group.removeFromParent(); }
 }
 
