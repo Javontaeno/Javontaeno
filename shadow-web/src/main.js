@@ -9,7 +9,7 @@ import { Player } from './player.js';
 import { Enemy, Encounters } from './enemies.js';
 import { HUD } from './hud.js';
 import { Actor, CAST } from './cast.js';
-import { SYM_U } from './character.js';
+import { SYM_U, applyArachnophobia } from './character.js';
 import { clamp } from './util.js';
 import { SETTINGS, saveSettings } from './settings.js';
 import { glyph, DEVICE_NAMES } from './controls.js';
@@ -54,7 +54,7 @@ class MenuNav {
   }
 }
 
-const SETTING_LABELS = { vibration: 'VIBRATION', invertY: 'INVERT CAMERA Y' };
+const SETTING_LABELS = { arach: 'ARACHNOPHOBIA MODE', vibration: 'VIBRATION', invertY: 'INVERT CAMERA Y' };
 
 function storedQuality() {
   const q = params.get('q');
@@ -259,6 +259,10 @@ class Game {
     SETTINGS[key] = !SETTINGS[key];
     saveSettings();
     if (key === 'vibration' && SETTINGS.vibration) this.rumble(0.5, 0.5, 200);
+    if (key === 'arach') {
+      for (const e of this.enemies) if (e.char) applyArachnophobia(e.char);
+      if (this.story) for (const a of this.story.actors) applyArachnophobia(a.char);
+    }
     this.refreshSettingLabels();
     this.audio.ui();
   }

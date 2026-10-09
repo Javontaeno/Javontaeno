@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLSL_NOISE, damp, lerp, clamp, smooth, rng } from './util.js';
 import { addAccessories } from './accessories.js';
+import { SETTINGS } from './settings.js';
 
 // ---------------------------------------------------------------------------
 // Joints & poses
@@ -785,7 +786,11 @@ function paintSymbiote(part, look, w, h, ctx, rnd) {
   noiseFill(ctx, w, h, look.symBase || '#060508', 0.06, rnd, 2);
   const t = look.symType || 'crawler';
   if (t === 'electro' && part !== 'head') zigzag(ctx, w * 0.25, 0, w * 0.25, h, 6, w * 0.03, Math.max(3, w * 0.012), '#d8c21a');
-  if (part === 'chest' && t === 'venom') { symMark(ctx, w * 0.25, h * 0.5, h * 0.9, '#efefef'); symMark(ctx, w * 0.75, h * 0.5, h * 0.8, '#efefef'); }
+  if (part === 'chest' && t === 'venom') {
+    // Arachnophobia mode swaps the spider on this ENEMY for a jagged symbiote mark. The hero's suit is never touched.
+    if (SETTINGS.arach) { symMark(ctx, w * 0.25, h * 0.5, h * 0.9, '#efefef'); symMark(ctx, w * 0.75, h * 0.5, h * 0.8, '#efefef'); }
+    else { spider(ctx, w * 0.25, h * 0.48, h * 0.62, '#efefef', 1.9); spider(ctx, w * 0.75, h * 0.5, h * 0.62, '#efefef', 1.9); }
+  }
   if (part === 'head') {
     const fx = w * 0.25;
     if (t === 'venom' || t === 'crawler' || t === 'wolverine') {
@@ -897,6 +902,15 @@ function paintEnemy(part, look, rnd) {
 }
 
 export const SYM_U = { uTime: { value: 0 } };
+// Re-apply arachnophobia mode to an enemy character that carries spider imagery. Heroes are skipped on purpose.
+export function applyArachnophobia(char) {
+  if (!char || char.kind === 'hero' || !char.look || char.look.symType !== 'venom' || !char.matByPart) return;
+  const m = char.matByPart.chest;
+  const old = m.map;
+  m.map = paintEnemy('chest', char.look, rng((char.look.seed || 1) * 7919)); // same noise stream the constructor used
+  m.needsUpdate = true;
+  old && old.dispose();
+}
 export function lookMaterial(part, look) { return enemyMaterial(part, look, rng(77)); }
 function enemyMaterial(part, look, rnd) {
   const map = paintEnemy(part, look, rnd);
@@ -951,6 +965,7 @@ export class Character {
     const isHero = kind === 'hero';
     for (const p of parts) mats[p] = isHero ? heroMaterial(p) : enemyMaterial(p, look, rnd);
     this.mats = Object.values(mats);
+    this.matByPart = mats;
 
     const root = (this.root = new THREE.Group());
     const J = (this.j = {});

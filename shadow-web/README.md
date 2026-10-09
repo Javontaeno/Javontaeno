@@ -37,7 +37,7 @@ Open `shadow-web/index.html` in a desktop browser (Chrome, Edge or Firefox) and 
 
 **Goal.** Destroy the 6 symbiote hives. Their infestation creeps across the buildings and streets around them. Street crimes, rooftop gangs and outbreaks spawn around the city for XP and levels.
 
-Audio (thwips, impacts, wind, sirens, and an adaptive combat score) is synthesized live with WebAudio. It is fully playable on Xbox, PlayStation and Switch controllers, and has an arachnophobia mode (see below).
+Audio (thwips, impacts, wind, sirens, and an adaptive combat score) is synthesized live with WebAudio. It is fully playable on Xbox, PlayStation and Switch controllers, and has an arachnophobia mode for enemies (see below).
 
 ## Controls
 
@@ -72,11 +72,13 @@ On a Switch Pro controller the buttons in the same positions work: B jumps, Y st
 
 ## Arachnophobia mode
 
-This is **on by default** and can be toggled on the title screen or in the pause menu.
+This is **on by default** and can be toggled on the title screen or in the pause menu. It only ever changes **enemies**:
 
-- The spider emblems on both suits (chest and back) are replaced with a winged emblem. The whole game then has no spider imagery.
-- "Spider-sense" is called "danger sense" in the UI.
-- Web lines on the suit, web-slinging, and wall-crawling stay as they are. The enemies are humanoid symbiotes and thugs.
+- Spider imagery on enemies is replaced. Venom's chest symbol becomes a jagged symbiote mark.
+- Any spider-shaped enemy added to the game will get a non-spider design while the mode is on.
+- **Spider-Man is never changed:** both suits keep the real spider emblem, and spider-sense keeps its name, whichever way the toggle is set.
+
+Regardless of the setting, no regular enemy has more than two arms, two legs and two eyes.
 
 ## Building from source
 
