@@ -2,6 +2,10 @@ import * as THREE from 'three';
 import { GLSL_NOISE, damp, lerp, clamp, smooth, rng } from './util.js';
 import { addAccessories } from './accessories.js';
 import { SETTINGS } from './settings.js';
+import { bodyGeometry, bodySkeleton, BODY_PARTS } from './bodies.js';
+
+// Sculpted skinned bodies (work in progress): opt in with ?bodies until every body is verified and licensed.
+const USE_BODIES = typeof location !== 'undefined' && /[?&]bodies/.test(location.search);
 
 // ---------------------------------------------------------------------------
 // Joints & poses
@@ -661,7 +665,7 @@ function heroMaterial(part) {
     Object.assign(s.uniforms, HERO_U);
     s.vertexShader = s.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vSW;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      .replace('#include <skinning_vertex>', '#include <skinning_vertex>\nvSW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     s.fragmentShader = s.fragmentShader
       .replace('#include <common>', `#include <common>\nvarying vec3 vSW; uniform sampler2D mapB; uniform float uMix; uniform vec3 uChest; uniform float uTime;\n${GLSL_NOISE}`)
       .replace('#include <map_fragment>', `
@@ -1103,41 +1107,47 @@ export class Character {
       m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
     };
     const k = build.bulk;
-    const pivot = node('pivot', root, 0, 1.05, 0);
-    const hips = node('hips', pivot, 0, -0.02, 0);
-    mesh(G.pelvis, mats.pelvis, hips);
-    const spine = node('spine', hips, 0, 0.09, 0);
-    mesh(G.abdomen, mats.abdomen, spine);
-    const chest = node('chest', spine, 0, 0.215, 0);
-    mesh(G.chest, mats.chest, chest);
-    const neck = node('neck', chest, 0, 0.27, -0.01);
-    mesh(G.neck, mats.neck, neck);
-    const head = node('head', neck, 0, 0.085, 0.0);
-    this.headMesh = mesh(G.head, mats.head, head, 0, 0.085, 0.012, k * 0.97, k * 0.97, k * 0.97);
-    // trapezius bridging neck and shoulders
-    mesh(G.joint, mats.chest, chest, 0, 0.255, -0.02, 0.15 * build.shoulders * k, 0.055, 0.085 * k);
-    for (const sd of ['L', 'R']) {
-      const s = sd === 'L' ? 1 : -1;
-      const ar = node('ar' + sd, chest, s * 0.2 * build.shoulders * k, 0.235, -0.01);
-      mesh(G.upperArm, mats.upperArm, ar);
-      mesh(G.joint, mats.upperArm, ar, s * 0.008, -0.025, 0, 0.07 * k * (build.arm || 1), 0.076 * k, 0.072 * k * (build.arm || 1)); // deltoid
-      const el = node('el' + sd, ar, 0, -0.29, 0);
-      mesh(G.foreArm, mats.foreArm, el);
-      mesh(G.joint, mats.foreArm, el, 0, 0, 0, 0.044 * k, 0.044 * k, 0.044 * k);
-      const ha = node('ha' + sd, el, 0, -0.27, 0);
-      const kh = k * (build.arm || 1);
-      mesh(G.palm, mats.hand, ha, 0, -0.052, 0.004, 0.025 * kh, 0.054, 0.047 * kh);
-      const fi = node('fi' + sd, ha, 0, -0.092, 0.0);
-      mesh(G.palm, mats.hand, fi, s * -0.004, -0.038, 0.002, 0.023 * kh, 0.046, 0.044 * kh);
-      mesh(G.palm, mats.hand, ha, s * -0.012, -0.048, 0.043, 0.016, 0.036, 0.016).rotation.x = -0.4; // thumb
-      const th = node('th' + sd, hips, s * 0.095 * k, -0.07, 0);
-      mesh(G.thigh, mats.thigh, th);
-      const kn = node('kn' + sd, th, 0, -0.45, 0);
-      mesh(G.shin, mats.shin, kn);
-      mesh(G.joint, mats.thigh, kn, 0, 0.0, 0.004, 0.052 * k, 0.055 * k, 0.055 * k);
-      const ft = node('ft' + sd, kn, 0, -0.44, 0);
-      mesh(G.foot, mats.foot, ft, 0, -0.03, 0.055, 0.047 * k, 0.045, 0.125);
+    const body = USE_BODIES && !look.legacy ? bodyGeometry(look.body || key) : null;
+    this.skinned = !!body;
+    if (body) this.buildSkinned(look.body || key, body, mats, root);
+    else {
+      const pivot = node('pivot', root, 0, 1.05, 0);
+      const hips = node('hips', pivot, 0, -0.02, 0);
+      mesh(G.pelvis, mats.pelvis, hips);
+      const spine = node('spine', hips, 0, 0.09, 0);
+      mesh(G.abdomen, mats.abdomen, spine);
+      const chest = node('chest', spine, 0, 0.215, 0);
+      mesh(G.chest, mats.chest, chest);
+      const neck = node('neck', chest, 0, 0.27, -0.01);
+      mesh(G.neck, mats.neck, neck);
+      const head = node('head', neck, 0, 0.085, 0.0);
+      this.headMesh = mesh(G.head, mats.head, head, 0, 0.085, 0.012, k * 0.97, k * 0.97, k * 0.97);
+      // trapezius bridging neck and shoulders
+      mesh(G.joint, mats.chest, chest, 0, 0.255, -0.02, 0.15 * build.shoulders * k, 0.055, 0.085 * k);
+      for (const sd of ['L', 'R']) {
+        const s = sd === 'L' ? 1 : -1;
+        const ar = node('ar' + sd, chest, s * 0.2 * build.shoulders * k, 0.235, -0.01);
+        mesh(G.upperArm, mats.upperArm, ar);
+        mesh(G.joint, mats.upperArm, ar, s * 0.008, -0.025, 0, 0.07 * k * (build.arm || 1), 0.076 * k, 0.072 * k * (build.arm || 1)); // deltoid
+        const el = node('el' + sd, ar, 0, -0.29, 0);
+        mesh(G.foreArm, mats.foreArm, el);
+        mesh(G.joint, mats.foreArm, el, 0, 0, 0, 0.044 * k, 0.044 * k, 0.044 * k);
+        const ha = node('ha' + sd, el, 0, -0.27, 0);
+        const kh = k * (build.arm || 1);
+        mesh(G.palm, mats.hand, ha, 0, -0.052, 0.004, 0.025 * kh, 0.054, 0.047 * kh);
+        const fi = node('fi' + sd, ha, 0, -0.092, 0.0);
+        mesh(G.palm, mats.hand, fi, s * -0.004, -0.038, 0.002, 0.023 * kh, 0.046, 0.044 * kh);
+        mesh(G.palm, mats.hand, ha, s * -0.012, -0.048, 0.043, 0.016, 0.036, 0.016).rotation.x = -0.4; // thumb
+        const th = node('th' + sd, hips, s * 0.095 * k, -0.07, 0);
+        mesh(G.thigh, mats.thigh, th);
+        const kn = node('kn' + sd, th, 0, -0.45, 0);
+        mesh(G.shin, mats.shin, kn);
+        mesh(G.joint, mats.thigh, kn, 0, 0.0, 0.004, 0.052 * k, 0.055 * k, 0.055 * k);
+        const ft = node('ft' + sd, kn, 0, -0.44, 0);
+        mesh(G.foot, mats.foot, ft, 0, -0.03, 0.055, 0.047 * k, 0.045, 0.125);
+      }
     }
+    const head = J.head;
     if (isHero) {
       // the lenses
       const lens = new THREE.ExtrudeGeometry(eyeShape(1), { depth: 0.004, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.0015, bevelSegments: 2 });
@@ -1146,7 +1156,11 @@ export class Character {
       const frameMat = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.4 });
       for (const s of [1, -1]) {
         const g = new THREE.Group();
-        g.position.set(s * 0.036, 0.1, 0.1135);
+        if (body) {
+          // sit the lenses on the sculpted face
+          const e = body.meta.eye, hw = body.W.head;
+          g.position.set(s * (e[0] + 0.004), e[1] - hw.y + 0.006, e[2] - hw.z - 0.012);
+        } else g.position.set(s * 0.036, 0.1, 0.1135);
         g.rotation.set(-0.18, s * 0.42, s * -0.1);
         g.scale.set(s * 1.18, 1.18, 1.18);
         const f = new THREE.Mesh(frame, frameMat); f.position.set(-0.002, -0.0015, -0.003);
@@ -1168,6 +1182,21 @@ export class Character {
     this.e = new THREE.Euler();
     this.overrides = {};
     this.rootY = 0;
+  }
+
+  // Build the sculpted skinned body: bones named like the procedural joints so every pose and action still applies.
+  buildSkinned(key, body, mats, root) {
+    const sk = bodySkeleton(key);
+    Object.assign(this.j, sk.bones);
+    root.add(sk.root);
+    const mesh = new THREE.SkinnedMesh(body.geo, BODY_PARTS.map((p) => mats[p]));
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    mesh.frustumCulled = false; // animated limbs leave the bind-pose bounds
+    root.add(mesh);
+    root.updateMatrixWorld(true);
+    mesh.bind(new THREE.Skeleton(sk.list));
+    for (const b of sk.list) b.quaternion.identity(); // rest = the rig's zero pose (arms hanging)
+    this.body = body; this.bodyMesh = mesh; this.headMesh = mesh;
   }
 
   // Smoothly drive joints toward `target` pose.
