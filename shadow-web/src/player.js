@@ -147,7 +147,7 @@ export class Player {
     const a = this.aim;
     a.valid = false; a.enemy = null;
     // enemy under the crosshair?
-    let best = null, bd = 0.13;
+    let best = null, bd = g.input.usingPad ? 0.22 : 0.13; // wider cone for analog sticks
     for (const e of g.enemies) {
       if (!e.targetable) continue;
       const c = e.chest(_v);
@@ -278,6 +278,7 @@ export class Player {
       this.game.fx.add.emit(this.pos, 20, { speed: 6, color: [0.6, 0.55, 0.5], life: 0.6, size: 0.3, gravity: 2 });
       this.game.audio.whoosh(true);
       this.game.cam.shake(0.15);
+      this.game.rumble(0.3, 0.3, 120);
     }
   }
 
@@ -331,12 +332,14 @@ export class Player {
       g.fx.add.emit(this.pos, 40, { speed: 9, color: [0.5, 0.45, 0.42], life: 0.8, size: 0.35, gravity: 3, up: 2 });
       g.cam.shake(0.45);
       g.audio.land(true);
+      g.rumble(0.85, 0.5, 220);
       // shockwave knocks nearby thugs off their feet
       for (const e of g.enemies) if (e.targetable && e.pos.distanceTo(this.pos) < 5) e.takeHit({ dmg: 6, knock: true, kb: 6, up: 3 }, _v.copy(e.pos).sub(this.pos).setY(0).normalize(), this);
     } else if (vy < -14) {
       this.landT = 0.22; this.landK = 0.45;
       this.vel.x *= 0.75; this.vel.z *= 0.75;
       g.audio.land(false);
+      g.rumble(0.15, 0.25, 70);
     }
   }
 
@@ -406,6 +409,7 @@ export class Player {
     this.airDashes = 0; this.airAttacks = 0;
     this.act = null;
     g.audio.thwip(this.black);
+    g.rumble(0, 0.22, 50);
     g.fx.hitSpark(s.attach, false, this.black);
     const n = _v2.copy(s.anchor).sub(o).normalize();
     this.vel.addScaledVector(n, 2.5);
@@ -522,6 +526,12 @@ export class Player {
     if (Math.abs(an.x) > Math.abs(an.z)) an.set(Math.sign(an.x), 0, 0); else an.set(0, 0, Math.sign(an.z));
     const box = g.city.wallAt(_v.copy(this.pos).setY(this.pos.y + 0.9), an, 0.8);
     if (!box || box.kind === 'hive' || box.y1 - this.pos.y < minAbove) return false;
+    // reject faces that are buried against a neighbouring building
+    const test = _v3.copy(this.pos);
+    const R = 0.42;
+    if (an.x > 0.5) test.x = box.x1 + R; else if (an.x < -0.5) test.x = box.x0 - R; else if (an.z > 0.5) test.z = box.z1 + R; else test.z = box.z0 - R;
+    test.y += 0.9;
+    if (g.city.pointInBox(test, 0.05)) return false;
     const w = this.wall;
     w.n.copy(an); w.box = box;
     const sp = this.vel.length();
@@ -564,16 +574,31 @@ export class Player {
       const nb = g.city.wallAt(_v3.copy(this.pos).setY(this.pos.y), n, 0.8);
       if (nb && nb !== b && nb.y1 - this.pos.y > 1) { w.box = nb; }
       else {
-        // wrap round the corner onto the side face
+        // wrap round the corner onto the side face — unless another building is flush against it
         const side = coord > hi ? 1 : -1;
-        const newN = alongX ? new THREE.Vector3(side, 0, 0) : new THREE.Vector3(0, 0, side);
-        if (alongX) this.pos.x = side > 0 ? b.x1 + 0.42 : b.x0 - 0.42; else this.pos.z = side > 0 ? b.z1 + 0.42 : b.z0 - 0.42;
-        if (alongX) this.pos.z = n.z > 0 ? b.z1 - 0.3 : b.z0 + 0.3; else this.pos.x = n.x > 0 ? b.x1 - 0.3 : b.x0 + 0.3;
-        n.copy(newN);
-        this.yaw = Math.atan2(-n.x, -n.z);
+        const cand = _v3.copy(this.pos);
+        if (alongX) cand.x = side > 0 ? b.x1 + 0.42 : b.x0 - 0.42; else cand.z = side > 0 ? b.z1 + 0.42 : b.z0 - 0.42;
+        if (alongX) cand.z = n.z > 0 ? b.z1 - 0.3 : b.z0 + 0.3; else cand.x = n.x > 0 ? b.x1 - 0.3 : b.x0 + 0.3;
+        cand.y += 0.9;
+        if (g.city.pointInBox(cand, 0.05)) {
+          if (alongX) this.pos.x = clamp(this.pos.x, lo, hi); else this.pos.z = clamp(this.pos.z, lo, hi);
+        } else {
+          cand.y -= 0.9;
+          this.pos.copy(cand);
+          n.copy(alongX ? new THREE.Vector3(side, 0, 0) : new THREE.Vector3(0, 0, side));
+          this.yaw = Math.atan2(-n.x, -n.z);
+        }
       }
     }
     this.snapToWall();
+    // safety net: never crawl inside geometry
+    if (g.city.pointInBox(_v3.copy(this.pos).setY(this.pos.y + 0.9), 0.05)) {
+      this.state = 'air'; this.stateT = 0;
+      this.pos.addScaledVector(n, 0.6);
+      this.vel.set(n.x * 4, 0, n.z * 4);
+      this.wallCd = 0.4;
+      return;
+    }
     // reached the top: vault onto the roof
     if (this.pos.y + 1.1 >= w.box.y1 && vy > 0) {
       this.state = 'air'; this.stateT = 0;
@@ -887,6 +912,7 @@ export class Player {
       g.hitstop(spec.heavy ? 0.085 : 0.045);
       g.cam.shake(spec.heavy ? 0.32 : 0.14);
       g.audio.punch(spec.heavy, black);
+      g.rumble(spec.heavy ? 0.5 : 0.18, spec.heavy ? 0.65 : 0.35, spec.heavy ? 120 : 60);
       g.hud.comboPulse();
     }
   }
@@ -920,6 +946,7 @@ export class Player {
       this.stats.perfect++;
       g.slowmo(0.22, 0.75);
       g.audio.perfect();
+      g.rumble(0.25, 0.8, 260);
       g.hud.flashText('PERFECT DODGE', '#9fd8ff');
     }
   }
@@ -968,7 +995,7 @@ export class Player {
       const c = t.chest(_v2);
       this.game.fx.hitSpark(c, true, true);
       this.combo++; this.comboT = 2.6; this.focus = Math.min(3, this.focus + 0.08);
-      this.game.hitstop(0.08); this.game.cam.shake(0.3); this.game.audio.punch(true, true);
+      this.game.hitstop(0.08); this.game.cam.shake(0.3); this.game.audio.punch(true, true); this.game.rumble(0.6, 0.6, 150);
     } else t.yankTo(this);
   }
 
@@ -1028,6 +1055,7 @@ export class Player {
     g.fx.add.emit(p, 80, { speed: 14, color: [2.4, 2.4, 2.6], life: 0.7, size: 0.14, gravity: 8 });
     g.audio.boom();
     g.cam.shake(0.25);
+    g.rumble(0.6, 0.5, 250);
     let n = 0;
     for (const e of g.enemies) if (e.targetable && e.pos.distanceTo(p) < 8) { e.webHit(3, this); n++; }
     if (n) { this.combo += n; this.comboT = 2.6; }
@@ -1054,6 +1082,7 @@ export class Player {
     this.suit = this.black ? 'red' : 'black';
     g.fx.setSuit(this.black);
     g.audio.suit(this.black);
+    g.rumble(0.5, 0.35, 350);
     const c = this.chestPos(_v);
     g.fx.dark.emit(c, 60, { speed: 6, color: [0.01, 0.01, 0.02], life: 0.8, size: 0.16, gravity: 2 });
     g.fx.add.emit(c, 30, { speed: 7, color: this.black ? [1.2, 0.5, 2.5] : [3, 0.6, 0.5], life: 0.5, size: 0.12, gravity: 0 });
@@ -1071,6 +1100,7 @@ export class Player {
     g.cam.shake(0.35);
     g.damageFlash();
     g.audio.hurt();
+    g.rumble(0.75, 0.5, 180);
     if (from) {
       const dir = _v.copy(this.pos).sub(from).setY(0).normalize();
       if (this.state === 'ground') { this.vel.addScaledVector(dir, 5); this.hurtT = 0.3; if (this.act && !this.act.dodge) this.endAction(); }
@@ -1088,6 +1118,7 @@ export class Player {
     g.fx.swingLine.mesh.visible = false;
     g.hud.showDead(true);
     g.slowmo(0.3, 1.2);
+    g.rumble(1, 1, 500);
   }
 
   respawn(water = false) {

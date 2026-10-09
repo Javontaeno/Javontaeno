@@ -1185,6 +1185,17 @@ export class City {
     return hit;
   }
 
+  // Is point p (with clearance r) inside any solid box? Returns the box or null.
+  pointInBox(p, r = 0.3) {
+    const arr = this.cellBoxes(Math.floor(p.x / this.cell), Math.floor(p.z / this.cell));
+    if (!arr) return null;
+    for (const b of arr) {
+      if (b.kind === 'hive' && !b.hive.alive) continue;
+      if (p.x > b.x0 + r && p.x < b.x1 - r && p.z > b.z0 + r && p.z < b.z1 - r && p.y > b.y0 + r && p.y < b.y1 - r) return b;
+    }
+    return null;
+  }
+
   // Box whose vertical face the point is touching (for wall crawling).
   wallAt(p, n, dist = 0.9) {
     const q = new THREE.Vector3(p.x - n.x * dist, p.y, p.z - n.z * dist);

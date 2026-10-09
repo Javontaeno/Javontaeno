@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLSL_NOISE, damp, lerp, clamp, smooth, rng } from './util.js';
+import { SETTINGS } from './settings.js';
 
 // ---------------------------------------------------------------------------
 // Joints & poses
@@ -523,6 +524,22 @@ function spider(ctx, cx, cy, s, color, legs = 1) {
   ctx.restore();
 }
 
+// Arachnophobia-safe emblem: a diamond with one pair of swept wings — no legs, nothing spider-shaped.
+function wingEmblem(ctx, cx, cy, s, color, span = 1) {
+  ctx.save(); ctx.translate(cx, cy); ctx.fillStyle = color;
+  ctx.beginPath(); ctx.moveTo(0, -s * 0.36); ctx.lineTo(s * 0.12, -s * 0.02); ctx.lineTo(0, s * 0.42); ctx.lineTo(-s * 0.12, -s * 0.02); ctx.closePath(); ctx.fill();
+  for (const sd of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(sd * s * 0.13, -s * 0.12);
+    ctx.quadraticCurveTo(sd * s * 0.42 * span, -s * 0.34, sd * s * 0.7 * span, -s * 0.3);
+    ctx.quadraticCurveTo(sd * s * 0.46 * span, -s * 0.14, sd * s * 0.4 * span, s * 0.04);
+    ctx.quadraticCurveTo(sd * s * 0.26, -s * 0.02, sd * s * 0.12, s * 0.06);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+const emblem = (ctx, cx, cy, s, color, legs = 1) => (SETTINGS.arach ? wingEmblem(ctx, cx, cy, s, color, Math.max(1, legs * 0.75)) : spider(ctx, cx, cy, s, color, legs));
+
 const SUIT = { red: '#b3121b', redD: '#7a0a10', blue: '#1b2d6b', blueD: '#101b45', line: '#1a0306', black: '#09090c' };
 
 function paintHero(part, mode) {
@@ -539,7 +556,7 @@ function paintHero(part, mode) {
   if (mode === 'black') {
     noiseFill(ctx, w, h, SUIT.black, 0.05, rnd, 2);
     const white = '#e9e9ee';
-    if (part === 'chest') { spider(ctx, w * 0.25, h * 0.48, h * 0.62, white, 1.9); spider(ctx, w * 0.75, h * 0.5, h * 0.62, white, 1.9); }
+    if (part === 'chest') { emblem(ctx, w * 0.25, h * 0.48, h * 0.62, white, 1.9); emblem(ctx, w * 0.75, h * 0.5, h * 0.62, white, 1.9); }
     if (part === 'hand') { ctx.fillStyle = white; ctx.beginPath(); ctx.ellipse(w * 0.75, h * 0.5, w * 0.12, h * 0.25, 0, 0, Math.PI * 2); ctx.fill(); }
     return tex(c);
   }
@@ -558,10 +575,10 @@ function paintHero(part, mode) {
       webLines(ctx, w, h, { nU: 26, nV: 4, color: line, width: lw, sag: 0.35 });
       for (const cx of [0.5, 0.0, 1.0]) blueRegion(sidePatch(cx, 0.32, 0.13));
       if (!R) {
-        spider(ctx, w * 0.25, h * 0.46, h * 0.42, '#0a0a0a', 1.0);
-        spider(ctx, w * 0.75, h * 0.52, h * 0.7, SUIT.redD, 1.3);
+        emblem(ctx, w * 0.25, h * 0.46, h * 0.42, '#0a0a0a', 1.0);
+        emblem(ctx, w * 0.75, h * 0.52, h * 0.7, SUIT.redD, 1.3);
       } else {
-        spider(ctx, w * 0.25, h * 0.46, h * 0.42, '#b0b0b0', 1.0);
+        emblem(ctx, w * 0.25, h * 0.46, h * 0.42, '#b0b0b0', 1.0);
       }
       break;
     }
@@ -653,8 +670,10 @@ function heroMaterial(part) {
     map, roughnessMap: relief, bumpMap: relief, bumpScale: -1.4, roughness: 0.78, metalness: 0,
     sheen: 0.6, sheenRoughness: 0.45, sheenColor: new THREE.Color(0.7, 0.3, 0.3), clearcoat: 1, clearcoatRoughness: 0.1,
   });
+  m.userData.part = part;
+  m.userData.uMapB = { value: mapB };
   m.onBeforeCompile = (s) => {
-    s.uniforms.mapB = { value: mapB };
+    s.uniforms.mapB = m.userData.uMapB;
     Object.assign(s.uniforms, HERO_U);
     s.vertexShader = s.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vSW;')
@@ -784,6 +803,19 @@ function enemyMaterial(part, look, rnd) {
         totalEmissiveRadiance += (1.0 - smoothstep(0.0, 0.012 + vw, abs(vn - 0.5))) * (1.0 - smoothstep(0.02, 0.08, vw)) * vec3(0.9, 0.04, 0.2) * (0.35 + 0.3 * sin(uTime * 4.0 + vOP.y * 20.0));`);
   };
   return m;
+}
+
+// Repaint the emblem-bearing suit parts (after toggling arachnophobia mode).
+export function repaintHero(char) {
+  for (const m of char.mats) {
+    if (m.userData.part !== 'chest') continue;
+    const old = [m.map, m.roughnessMap, m.userData.uMapB.value];
+    m.map = paintHero('chest', 'red');
+    const relief = paintHero('chest', 'relief');
+    m.roughnessMap = relief; m.bumpMap = relief;
+    m.userData.uMapB.value = paintHero('chest', 'black');
+    for (const t of old) t && t.dispose();
+  }
 }
 
 // ---------------------------------------------------------------------------

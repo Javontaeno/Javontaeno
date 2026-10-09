@@ -28,6 +28,8 @@ export class CameraRig {
 
   shake(a) { this.trauma = Math.min(1, this.trauma + a); }
 
+  recenter(yaw) { this.recenterYaw = yaw; }
+
   snapBehind(yaw) { this.yaw = yaw; }
 
   update(dt, player, look) {
@@ -37,6 +39,11 @@ export class CameraRig {
     if (Math.abs(look.x) + Math.abs(look.y) > 1e-4) this.idleLook = 0; else this.idleLook += dt;
     this.yaw -= look.x;
     this.pitch = clamp(this.pitch + look.y, -1.2, 1.35);
+    if (this.recenterYaw !== undefined) {
+      this.yaw = dampAngle(this.yaw, this.recenterYaw, 12, dt);
+      this.pitch += (0.18 - this.pitch) * damp(12, dt);
+      if (Math.abs(((this.recenterYaw - this.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI) < 0.02) this.recenterYaw = undefined;
+    }
     // assisted follow while traversing fast and not steering the camera
     if (fast && this.idleLook > 0.7 && moving > 12) {
       const vy = Math.atan2(player.vel.x, player.vel.z);

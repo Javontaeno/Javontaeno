@@ -82,6 +82,26 @@
   #help .cols { display: grid; grid-template-columns: auto auto; gap: 0 22px; }
   kbd { display: inline-block; min-width: 20px; padding: 0 5px; border: 1px solid rgba(255,255,255,.4); border-bottom-width: 2px; border-radius: 3px; font-family: inherit; font-weight: 700; font-size: 13px; text-align: center; background: rgba(255,255,255,.08); margin-right: 4px; }
 
+  /* controller glyphs */
+  .g { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; margin-right: 4px; border-radius: 6px; font-weight: 800; font-size: 12px; line-height: 1; color: #fff; background: #23262e; border: 1px solid rgba(255,255,255,.4); vertical-align: middle; font-family: 'Barlow Condensed', Arial, sans-serif; }
+  .g.face { width: 22px; padding: 0; border-radius: 50%; font-size: 13px; }
+  .g.xa { background: #2f8f3a; } .g.xb { background: #c2343a; } .g.xx { background: #2a62c9; } .g.xy { background: #d3a421; color: #151515; }
+  .g.pcross { color: #8fb2ff; } .g.pcircle { color: #ff7a7a; } .g.psq { color: #ff9be0; } .g.ptri { color: #63e2b4; }
+  .g.pcross, .g.pcircle, .g.psq, .g.ptri { background: #15171d; font-size: 14px; }
+  .g.sw { background: #2b2d33; }
+  .g.shoulder { border-radius: 5px 5px 8px 8px; min-width: 28px; }
+  .g.small { font-size: 11px; border-radius: 11px; }
+  .g.stick { border-radius: 50%; width: 24px; padding: 0; background: radial-gradient(circle, #444 40%, #222 42%); }
+  .g.dpad { font-size: 11px; letter-spacing: -.05em; }
+  .nav { outline: none; }
+  .nav.focus { box-shadow: 0 0 0 3px #fff, 0 0 22px rgba(255,255,255,.55) !important; }
+  .btn.nav.focus { box-shadow: none !important; background: #fff; color: #111; transform: scale(1.06); }
+  .btn.nav.focus:not(.ghost) { background: linear-gradient(180deg, #ff6670, #d01826); color: #fff; filter: drop-shadow(0 0 14px rgba(255,90,100,.9)); }
+  .row-set { display: flex; gap: 10px; align-items: center; justify-content: center; }
+  .btn.set { min-width: 380px; text-align: center; }
+  #padNote { margin-top: 14px; min-height: 22px; font-size: 16px; letter-spacing: .1em; color: #cfe3ff; }
+  #pause .hint { font-size: 14px; letter-spacing: .1em; opacity: .7; margin-top: 4px; }
+
   #dead, #victory { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; background: radial-gradient(circle, rgba(60,0,8,.45), rgba(0,0,0,.85)); opacity: 0; pointer-events: none; transition: opacity .6s; }
   #dead.show, #victory.show { opacity: 1; }
   #victory { background: radial-gradient(circle, rgba(10,20,60,.4), rgba(0,0,0,.85)); }
@@ -143,34 +163,36 @@
   <div id="toast"></div>
   <div id="help">
     <h4>CONTROLS</h4>
-    <div class="cols">
-      <div><kbd>W A S D</kbd> move &nbsp;<kbd>Mouse</kbd> camera</div><div><kbd>LMB</kbd> strike &middot; hold = launcher</div>
-      <div><kbd>Shift</kbd> hold to web-swing / sprint</div><div><kbd>RMB</kbd> web shot &middot; hold = yank</div>
-      <div><kbd>Space</kbd> jump (hold = super jump)</div><div><kbd>C</kbd> dodge (on spider-sense = perfect)</div>
-      <div><kbd>E</kbd> web-zip to point / web strike</div><div><kbd>F</kbd> finisher &nbsp;<kbd>H</kbd> heal (focus)</div>
-      <div><kbd>Q</kbd> air web-zip dash</div><div><kbd>R</kbd> switch suit &nbsp;<kbd>G</kbd> web bomb / surge</div>
-      <div><kbd>T</kbd> time of day &nbsp;<kbd>M</kbd> mute</div><div><kbd>I</kbd> toggle this panel &nbsp;<kbd>Esc</kbd> pause</div>
-    </div>
+    <div class="cols" id="helpRows"></div>
   </div>
 </div>
 
 <div id="dead"><h2>DOWN BUT NOT OUT</h2><div style="letter-spacing:.3em;opacity:.8">RESPAWNING&hellip;</div></div>
-<div id="victory"><h2>THE CITY IS SAVED</h2><div id="victoryStats" style="letter-spacing:.15em;opacity:.9;margin:14px 0 24px;font-size:20px"></div><button class="btn ghost" id="victoryBtn">KEEP SWINGING</button></div>
+<div id="victory"><h2>THE CITY IS SAVED</h2><div id="victoryStats" style="letter-spacing:.15em;opacity:.9;margin:14px 0 24px;font-size:20px"></div><button class="btn ghost nav" id="victoryBtn">KEEP SWINGING</button></div>
 
 <div id="title" class="screen hidden">
   <h1 class="title-font">SHADOW <span>WEB</span></h1>
   <div class="tag">The symbiote invasion has begun. Take back the city.</div>
-  <button class="btn" id="playBtn">PLAY</button>
-  <div class="opts"><span>QUALITY</span><button data-q="0">LOW</button><button data-q="1">MEDIUM</button><button data-q="2">HIGH</button></div>
-  <div class="controls">
-    <div><kbd>Shift</kbd> web-swing</div><div><kbd>LMB</kbd> strike / combo</div><div><kbd>R</kbd> symbiote suit</div>
-    <div><kbd>Space</kbd> jump / launch</div><div><kbd>RMB</kbd> web shot / yank</div><div><kbd>C</kbd> dodge</div>
-    <div><kbd>E</kbd> zip to point</div><div><kbd>Q</kbd> air dash</div><div><kbd>F</kbd> finisher</div>
-  </div>
-  <div class="note">Gamepad supported. Destroy the six symbiote hives to end the invasion &mdash; stop street crimes and outbreaks along the way to level up.</div>
+  <button class="btn nav" id="playBtn">PLAY</button>
+  <div id="padNote"></div>
+  <div class="opts"><span>QUALITY</span><button class="nav" data-q="0">LOW</button><button class="nav" data-q="1">MEDIUM</button><button class="nav" data-q="2">HIGH</button></div>
+  <div class="opts"><button class="nav" id="titleArach" data-set="arach">ARACHNOPHOBIA MODE: ON</button></div>
+  <div class="controls" id="titleControls"></div>
+  <div class="note">Xbox, PlayStation, Switch Pro and most USB/Bluetooth controllers supported. Destroy the six symbiote hives to end the invasion &mdash; stop street crimes and outbreaks along the way to level up.</div>
 </div>
 
-<div id="pause" class="screen"><h2>PAUSED</h2><button class="btn" id="resumeBtn">RESUME</button><button class="btn ghost" id="timeBtn">TIME OF DAY</button><button class="btn ghost" id="muteBtn">SOUND: ON</button></div>
+<div id="pause" class="screen">
+  <h2>PAUSED</h2>
+  <button class="btn nav" id="resumeBtn">RESUME</button>
+  <button class="btn ghost set nav" id="timeBtn">TIME OF DAY</button>
+  <button class="btn ghost set nav" id="muteBtn">SOUND: ON</button>
+  <button class="btn ghost set nav" data-set="vibration">VIBRATION: ON</button>
+  <button class="btn ghost set nav" data-set="invertY">INVERT CAMERA Y: OFF</button>
+  <button class="btn ghost set nav" id="sensBtn" data-adjust="sens">CAMERA SENSITIVITY: ◀ 1.0 ▶</button>
+  <button class="btn ghost set nav" data-set="arach">ARACHNOPHOBIA MODE: ON</button>
+  <button class="btn ghost set nav" id="controlsBtn">SHOW CONTROLS</button>
+  <div class="hint" id="pauseHint"></div>
+</div>
 
 <!--BUNDLE-->
 </body>

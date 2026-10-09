@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { L, blockRect } from './city.js';
 import { clamp } from './util.js';
+import { glyph, controlRows, TITLE_ROWS, TITLE_LABELS, DEVICE_NAMES } from './controls.js';
 
 const $ = (id) => document.getElementById(id);
 const _v = new THREE.Vector3();
@@ -24,6 +25,25 @@ export class HUD {
     this.toastT = 0; this.flashT = 0;
     this.helpVisible = true;
     this.helpT = 25;
+  }
+
+  // Rebuild every on-screen button prompt for the active device (keyboard, Xbox, PlayStation, Switch).
+  refreshPrompts(device) {
+    this.device = device;
+    const rows = document.getElementById('helpRows');
+    if (rows) rows.innerHTML = controlRows().map(([a, label]) => `<div>${glyph(a, device)} ${label}</div>`).join('');
+    const tc = document.getElementById('titleControls');
+    if (tc) tc.innerHTML = TITLE_ROWS.map((a) => `<div>${glyph(a, device)} ${TITLE_LABELS[a]}</div>`).join('');
+    const note = document.getElementById('padNote');
+    if (note) {
+      const conf = device === 'switch' ? glyph('dodge', device) : glyph('jump', device);
+      note.innerHTML = device === 'kbm' ? '' : `${DEVICE_NAMES[device]} detected &mdash; ${conf} select &nbsp; ✚ / stick navigate`;
+    }
+    const ph = document.getElementById('pauseHint');
+    if (ph) {
+      ph.innerHTML = device === 'kbm' ? 'Arrow keys + Enter, or click &nbsp;·&nbsp; Esc / click to resume'
+        : `✚ / stick navigate &nbsp; ${device === 'switch' ? glyph('dodge', device) : glyph('jump', device)} select &nbsp; ◀ ▶ adjust &nbsp; ${glyph('pause', device)} resume`;
+    }
   }
 
   buildMap() {

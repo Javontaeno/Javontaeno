@@ -8,12 +8,52 @@ import { CameraRig } from './camera.js';
 import { Player } from './player.js';
 import { Enemy, Encounters } from './enemies.js';
 import { HUD } from './hud.js';
-import { SYM_U } from './character.js';
+import { SYM_U, repaintHero } from './character.js';
 import { clamp } from './util.js';
+import { SETTINGS, saveSettings } from './settings.js';
+import { glyph, DEVICE_NAMES } from './controls.js';
 
 const params = new URLSearchParams(location.search);
 const TEST = params.has('test');
 const _v = new THREE.Vector3();
+
+// Focus-based navigation for the title, pause and victory screens (controller, keyboard or mouse).
+class MenuNav {
+  constructor(game) { this.g = game; this.screen = null; this.i = 0; this.keyNav = false; this.bound = new WeakSet(); }
+  items() { return this.screen ? [...this.screen.querySelectorAll('.nav')].filter((el) => el.offsetParent !== null) : []; }
+  set(screen) {
+    if (this.screen === screen) return;
+    this.screen = screen; this.i = 0;
+    for (const el of this.items()) {
+      if (this.bound.has(el)) continue;
+      this.bound.add(el);
+      el.addEventListener('mouseenter', () => { this.i = this.items().indexOf(el); this.highlight(); });
+    }
+    this.highlight();
+  }
+  highlight() {
+    document.querySelectorAll('.nav.focus').forEach((e) => e.classList.remove('focus'));
+    const it = this.items();
+    if (!it.length) return;
+    this.i = ((this.i % it.length) + it.length) % it.length;
+    if (this.g.input.usingPad || this.keyNav) it[this.i].classList.add('focus');
+  }
+  update() {
+    const inp = this.g.input, it = this.items();
+    if (!it.length) return;
+    const cur = it[this.i] || it[0];
+    let moved = false;
+    if (inp.menu('up')) { this.i--; moved = true; }
+    if (inp.menu('down')) { this.i++; moved = true; }
+    if (inp.menu('left')) { if (cur.dataset.adjust) this.g.adjust(cur.dataset.adjust, -1); else { this.i--; moved = true; } }
+    if (inp.menu('right')) { if (cur.dataset.adjust) this.g.adjust(cur.dataset.adjust, 1); else { this.i++; moved = true; } }
+    if (moved) { this.keyNav = true; this.g.audio.ui(); }
+    this.highlight();
+    if (inp.menu('confirm')) { const el = this.items()[this.i]; if (el) { this.keyNav = true; el.click(); } }
+  }
+}
+
+const SETTING_LABELS = { arach: 'ARACHNOPHOBIA MODE', vibration: 'VIBRATION', invertY: 'INVERT CAMERA Y' };
 
 function storedQuality() {
   const q = params.get('q');
@@ -49,10 +89,23 @@ class Game {
     this.hud = new HUD(this);
     this.placePlayer();
     this.renderer.resize();
+    this.menu = new MenuNav(this);
     this.input.onLockChange = (locked) => {
-      if (!this.running || TEST) return;
-      this.setPaused(!locked);
+      if (!this.running || TEST || this.victory) return;
+      if (!locked) this.setPaused(true); else if (this.paused) this.setPaused(false);
     };
+    this.input.onDeviceChange = (d) => { this.hud.refreshPrompts(d); this.menu.highlight(); };
+    this.input.onPadConnect = (kind) => {
+      this.input.setDevice(kind);
+      this.toast(`<b>${DEVICE_NAMES[kind].toUpperCase()}</b> connected`, 3);
+      this.rumble(0.4, 0.4, 200);
+    };
+    this.input.onPadDisconnect = () => {
+      this.toast('<b>CONTROLLER DISCONNECTED</b>', 3);
+      if (this.running && !this.paused) this.setPaused(true);
+    };
+    this.hud.refreshPrompts(this.input.device);
+    this.refreshSettingLabels();
     window.__game = this;
     window.__THREE = THREE;
     window.__Enemy = Enemy;
@@ -164,6 +217,7 @@ class Game {
       this.fx.add.emit(h.pos, 80, { speed: 14, up: 6, color: [3, 0.3, 0.6], color2: [1.2, 0.3, 2.5], life: 1.2, size: 0.18 });
       this.audio.boom();
       this.cam.shake(0.8);
+      this.rumble(1, 1, 700);
       this.slowmo(0.3, 1.0);
       for (const e of this.enemies) if (e.ev === ev && e.alive) e.ko(new THREE.Vector3(0, 0, 0), { kb: 2 });
       const left = this.city.hives.filter((x) => x.alive).length;
@@ -184,8 +238,43 @@ class Game {
   }
 
   setPaused(p) {
+    if (p === this.paused) return;
     this.paused = p;
+    this.pauseT = 0;
     document.getElementById('pause').classList.toggle('show', p && !this.victory);
+    if (p) this.rumble(0, 0, 1);
+  }
+
+  resume() {
+    this.setPaused(false);
+    this.skipFrame = true;
+    if (!TEST && !this.input.usingPad) this.input.lock();
+  }
+
+  rumble(strong, weak, ms) { this.input.rumble(strong, weak, ms); }
+
+  toggleSetting(key) {
+    SETTINGS[key] = !SETTINGS[key];
+    saveSettings();
+    if (key === 'arach') { repaintHero(this.player.char); this.hud.refreshPrompts(this.input.device); }
+    if (key === 'vibration' && SETTINGS.vibration) this.rumble(0.5, 0.5, 200);
+    this.refreshSettingLabels();
+    this.audio.ui();
+  }
+
+  adjust(key, d) {
+    if (key === 'sens') SETTINGS.sens = clamp(Math.round((SETTINGS.sens + d * 0.1) * 10) / 10, 0.3, 2.5);
+    saveSettings();
+    this.refreshSettingLabels();
+    this.audio.ui();
+  }
+
+  refreshSettingLabels() {
+    document.querySelectorAll('[data-set]').forEach((el) => { el.textContent = `${SETTING_LABELS[el.dataset.set]}: ${SETTINGS[el.dataset.set] ? 'ON' : 'OFF'}`; });
+    const sb = document.getElementById('sensBtn');
+    if (sb) sb.textContent = `CAMERA SENSITIVITY: ◀ ${SETTINGS.sens.toFixed(1)} ▶`;
+    const mb = document.getElementById('muteBtn');
+    if (mb) mb.textContent = `SOUND: ${this.audio.muted ? 'OFF' : 'ON'}`;
   }
 
   cycleTime() {
@@ -195,12 +284,14 @@ class Game {
   }
 
   start() {
+    if (this.running) return;
     this.running = true;
+    this.skipFrame = true;
     document.getElementById('title').classList.add('hidden');
     this.hud.el.hud.classList.add('on');
     this.audio.init();
-    if (!TEST) this.input.lock();
-    this.toast('Destroy the <b>symbiote hives</b>. Hold <b>Shift</b> in the air to swing.', 6);
+    if (!TEST && !this.input.usingPad) this.input.lock();
+    this.toast(`Destroy the <b>symbiote hives</b>. Hold ${glyph('swing', this.input.device)} in the air to swing.`, 6);
   }
 
   // ---------------------------------------------------------------------------
@@ -210,14 +301,27 @@ class Game {
     const inp = this.input;
     inp.pollPad(rdt);
     inp.tick(rdt);
+    // browsers only unlock audio on a gesture; keep nudging it for controller-only players
+    if (this.audio.ctx && this.audio.ctx.state === 'suspended' && inp.padB.some((v) => v > 0.5)) this.audio.ctx.resume();
+    const screen = !this.running ? this.titleEl : this.victory ? this.victoryEl : this.paused ? this.pauseEl : null;
+    this.menu.set(screen);
+    if (screen) this.menu.update();
+    if (!this.running && inp.menu('start')) this.start();
+
     if (this.running && !this.paused) {
-      if (inp.pressed('time')) this.cycleTime();
-      if (inp.pressed('mute')) this.audio.setMuted(!this.audio.muted);
-      if (inp.pressed('help')) this.hud.toggleHelp();
-      if (inp.pressed('pause') && inp.usingPad) this.setPaused(true);
-      this.step(rdt);
-    } else if (this.paused && inp.pressed('pause') && inp.usingPad) this.setPaused(false);
-    else {
+      if (this.skipFrame) this.skipFrame = false;
+      else {
+        if (inp.pressed('pause') && !this.victory) { this.setPaused(true); if (inp.locked) document.exitPointerLock?.(); }
+        if (inp.pressed('time')) this.cycleTime();
+        if (inp.pressed('mute')) { this.audio.setMuted(!this.audio.muted); this.refreshSettingLabels(); }
+        if (inp.pressed('help')) this.hud.toggleHelp();
+        if (inp.pressed('recenter')) this.cam.recenter(this.player.yawVis);
+        if (!this.paused) this.step(rdt);
+      }
+    } else if (this.running && this.paused) {
+      this.pauseT += rdt;
+      if (this.pauseT > 0.25 && (inp.menu('back') || inp.menu('start'))) this.resume();
+    } else {
       // title screen: slow orbit
       this.cam.yaw += rdt * 0.05;
       this.cam.update(rdt, this.player, { x: 0, y: 0 });
@@ -304,11 +408,20 @@ function boot() {
     };
   });
   document.getElementById('playBtn').onclick = () => game.start();
-  document.getElementById('resumeBtn').onclick = () => { game.setPaused(false); game.input.lock(); };
+  game.titleEl = title;
+  game.pauseEl = document.getElementById('pause');
+  game.victoryEl = document.getElementById('victory');
+  document.getElementById('resumeBtn').onclick = () => game.resume();
   document.getElementById('timeBtn').onclick = () => game.cycleTime();
-  document.getElementById('muteBtn').onclick = (e) => { game.audio.setMuted(!game.audio.muted); e.target.textContent = `SOUND: ${game.audio.muted ? 'OFF' : 'ON'}`; };
-  document.getElementById('victoryBtn').onclick = () => { game.hud.showVictory(false); game.victory = false; game.input.lock(); };
+  document.getElementById('muteBtn').onclick = () => { game.audio.setMuted(!game.audio.muted); game.refreshSettingLabels(); };
+  document.getElementById('controlsBtn').onclick = () => { game.hud.toggleHelp(true); game.resume(); };
+  document.querySelectorAll('[data-set]').forEach((el) => { el.onclick = () => game.toggleSetting(el.dataset.set); });
+  document.getElementById('sensBtn').onclick = (e) => { const r = e.currentTarget.getBoundingClientRect(); game.adjust('sens', e.clientX && e.clientX < r.left + r.width / 2 ? -1 : 1); };
+  document.getElementById('victoryBtn').onclick = () => { game.hud.showVictory(false); game.victory = false; game.setPaused(false); game.skipFrame = true; if (!game.input.usingPad) game.input.lock(); };
   game.renderer.r.domElement.addEventListener('click', () => { if (game.running && !game.paused && !TEST) game.input.lock(); });
+  // unlock audio on the first keyboard/mouse gesture too
+  const unlock = () => { if (game.audio.ctx && game.audio.ctx.state === 'suspended') game.audio.ctx.resume(); };
+  addEventListener('pointerdown', unlock); addEventListener('keydown', unlock);
   if (TEST) game.start(); else title.classList.remove('hidden');
   game.run();
 }
