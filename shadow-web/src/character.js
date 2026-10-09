@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLSL_NOISE, damp, lerp, clamp, smooth, rng } from './util.js';
-import { SETTINGS } from './settings.js';
+import { addAccessories } from './accessories.js';
 
 // ---------------------------------------------------------------------------
 // Joints & poses
@@ -401,7 +401,7 @@ const gauss = (x, s) => Math.exp(-(x * x) / (2 * s * s));
 function buildGeometries(build) {
   const k = build.bulk; // radius multiplier
   const g = {};
-  g.pelvis = lathe([[0.0, -0.13], [0.07, -0.128], [0.125 * k, -0.095], [0.148 * k, -0.035], [0.146 * k, 0.03], [0.138 * k, 0.085]], 1.12, 0.84, 28,
+  g.pelvis = lathe([[0.0, -0.13], [0.07, -0.128], [0.125 * k, -0.095], [0.148 * k, -0.035], [0.146 * k, 0.03], [0.138 * k, 0.085]], 1.12 * (build.hips || 1), 0.84, 28,
     (a, v) => 0.016 * gauss(Math.abs(a) - Math.PI, 0.7) * gauss(v - 0.45, 0.2));
   g.abdomen = lathe([[0.137 * k, -0.01], [0.13 * k, 0.06], [0.128 * k * build.waist, 0.12], [0.138 * k, 0.18], [0.152 * k, 0.235]], 1.16, 0.8, 28,
     build.abs ? (a, v) => {
@@ -417,6 +417,7 @@ function buildGeometries(build) {
       // pecs
       d += build.pec * 0.022 * gauss(Math.abs(a) - 0.42, 0.3) * gauss(v - 0.55, 0.16);
       d -= 0.006 * gauss(a, 0.06) * gauss(v - 0.55, 0.25);
+      if (build.bust) d += build.bust * 0.03 * gauss(Math.abs(a) - 0.4, 0.28) * gauss(v - 0.5, 0.14);
       // lats & shoulder blades
       d += 0.01 * gauss(Math.abs(a) - 2.0, 0.4) * gauss(v - 0.35, 0.2);
       d += 0.008 * gauss(Math.abs(a) - 2.7, 0.3) * gauss(v - 0.6, 0.15);
@@ -524,22 +525,6 @@ function spider(ctx, cx, cy, s, color, legs = 1) {
   ctx.restore();
 }
 
-// Arachnophobia-safe emblem: a diamond with one pair of swept wings — no legs, nothing spider-shaped.
-function wingEmblem(ctx, cx, cy, s, color, span = 1) {
-  ctx.save(); ctx.translate(cx, cy); ctx.fillStyle = color;
-  ctx.beginPath(); ctx.moveTo(0, -s * 0.36); ctx.lineTo(s * 0.12, -s * 0.02); ctx.lineTo(0, s * 0.42); ctx.lineTo(-s * 0.12, -s * 0.02); ctx.closePath(); ctx.fill();
-  for (const sd of [-1, 1]) {
-    ctx.beginPath();
-    ctx.moveTo(sd * s * 0.13, -s * 0.12);
-    ctx.quadraticCurveTo(sd * s * 0.42 * span, -s * 0.34, sd * s * 0.7 * span, -s * 0.3);
-    ctx.quadraticCurveTo(sd * s * 0.46 * span, -s * 0.14, sd * s * 0.4 * span, s * 0.04);
-    ctx.quadraticCurveTo(sd * s * 0.26, -s * 0.02, sd * s * 0.12, s * 0.06);
-    ctx.closePath(); ctx.fill();
-  }
-  ctx.restore();
-}
-const emblem = (ctx, cx, cy, s, color, legs = 1) => (SETTINGS.arach ? wingEmblem(ctx, cx, cy, s, color, Math.max(1, legs * 0.75)) : spider(ctx, cx, cy, s, color, legs));
-
 const SUIT = { red: '#b3121b', redD: '#7a0a10', blue: '#1b2d6b', blueD: '#101b45', line: '#1a0306', black: '#09090c' };
 
 function paintHero(part, mode) {
@@ -556,7 +541,7 @@ function paintHero(part, mode) {
   if (mode === 'black') {
     noiseFill(ctx, w, h, SUIT.black, 0.05, rnd, 2);
     const white = '#e9e9ee';
-    if (part === 'chest') { emblem(ctx, w * 0.25, h * 0.48, h * 0.62, white, 1.9); emblem(ctx, w * 0.75, h * 0.5, h * 0.62, white, 1.9); }
+    if (part === 'chest') { spider(ctx, w * 0.25, h * 0.48, h * 0.62, white, 1.9); spider(ctx, w * 0.75, h * 0.5, h * 0.62, white, 1.9); }
     if (part === 'hand') { ctx.fillStyle = white; ctx.beginPath(); ctx.ellipse(w * 0.75, h * 0.5, w * 0.12, h * 0.25, 0, 0, Math.PI * 2); ctx.fill(); }
     return tex(c);
   }
@@ -575,10 +560,10 @@ function paintHero(part, mode) {
       webLines(ctx, w, h, { nU: 26, nV: 4, color: line, width: lw, sag: 0.35 });
       for (const cx of [0.5, 0.0, 1.0]) blueRegion(sidePatch(cx, 0.32, 0.13));
       if (!R) {
-        emblem(ctx, w * 0.25, h * 0.46, h * 0.42, '#0a0a0a', 1.0);
-        emblem(ctx, w * 0.75, h * 0.52, h * 0.7, SUIT.redD, 1.3);
+        spider(ctx, w * 0.25, h * 0.46, h * 0.42, '#0a0a0a', 1.0);
+        spider(ctx, w * 0.75, h * 0.52, h * 0.7, SUIT.redD, 1.3);
       } else {
-        emblem(ctx, w * 0.25, h * 0.46, h * 0.42, '#b0b0b0', 1.0);
+        spider(ctx, w * 0.25, h * 0.46, h * 0.42, '#b0b0b0', 1.0);
       }
       break;
     }
@@ -670,10 +655,8 @@ function heroMaterial(part) {
     map, roughnessMap: relief, bumpMap: relief, bumpScale: -1.4, roughness: 0.78, metalness: 0,
     sheen: 0.6, sheenRoughness: 0.45, sheenColor: new THREE.Color(0.7, 0.3, 0.3), clearcoat: 1, clearcoatRoughness: 0.1,
   });
-  m.userData.part = part;
-  m.userData.uMapB = { value: mapB };
   m.onBeforeCompile = (s) => {
-    s.uniforms.mapB = m.userData.uMapB;
+    s.uniforms.mapB = { value: mapB };
     Object.assign(s.uniforms, HERO_U);
     s.vertexShader = s.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vSW;')
@@ -705,117 +688,237 @@ function heroMaterial(part) {
   return m;
 }
 
+// Jagged two-wing symbiote mark used on Venom's chest (deliberately not spider-shaped).
+function symMark(ctx, cx, cy, s, color) {
+  ctx.save(); ctx.translate(cx, cy); ctx.fillStyle = color;
+  for (const sd of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(sd * s * 0.04, -s * 0.05);
+    ctx.lineTo(sd * s * 0.62, -s * 0.42); ctx.lineTo(sd * s * 0.4, -s * 0.12); ctx.lineTo(sd * s * 0.55, -s * 0.06);
+    ctx.lineTo(sd * s * 0.18, s * 0.12); ctx.lineTo(sd * s * 0.06, s * 0.5); ctx.lineTo(0, s * 0.2);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+function zigzag(ctx, x0, y0, x1, y1, n, amp, width, color) {
+  ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineJoin = 'miter';
+  ctx.beginPath(); ctx.moveTo(x0, y0);
+  for (let i = 1; i <= n; i++) { const t = i / n; ctx.lineTo(x0 + (x1 - x0) * t + (i % 2 ? amp : -amp), y0 + (y1 - y0) * t); }
+  ctx.stroke();
+}
+
+function paintHead(ctx, w, h, L, rnd) {
+  const fx = w * 0.25;
+  const base = { moon: '#e9ebee', balaclava: '#111', electro: L.top, visor: '#2a2c30' }[L.mask] || L.skin;
+  noiseFill(ctx, w, h, base, 0.05, rnd, 2);
+  if (L.mask === 'wolverine') {
+    noiseFill(ctx, w, h, L.top, 0.05, rnd, 2);
+    ctx.fillStyle = L.skin; ctx.fillRect(fx - w * 0.07, h * 0.56, w * 0.14, h * 0.3);
+    ctx.fillStyle = '#0b0b0b';
+    for (const sd of [-1, 1]) {
+      ctx.beginPath(); ctx.moveTo(fx + sd * w * 0.01, h * 0.5); ctx.lineTo(fx + sd * w * 0.12, h * 0.12); ctx.lineTo(fx + sd * w * 0.09, h * 0.52); ctx.closePath(); ctx.fill();
+    }
+  }
+  if (L.hairStyle !== 'bald' && !['moon', 'balaclava', 'electro', 'wolverine', 'visor'].includes(L.mask)) {
+    ctx.fillStyle = L.hair; ctx.fillRect(0, 0, w, h * 0.28); ctx.fillRect(fx + w * 0.13, 0, w * 0.24, h * (L.female ? 0.75 : 0.6));
+  }
+  if (L.hat) { ctx.fillStyle = L.hat; ctx.fillRect(0, 0, w, h * 0.36); ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(0, h * 0.32, w, h * 0.04); }
+  // eyes
+  const eye = (white, iris) => {
+    for (const sd of [-1, 1]) {
+      ctx.fillStyle = white; ctx.beginPath(); ctx.ellipse(fx + sd * w * 0.032, h * 0.46, w * 0.016, h * 0.022, 0, 0, Math.PI * 2); ctx.fill();
+      if (iris) { ctx.fillStyle = iris; ctx.beginPath(); ctx.arc(fx + sd * w * 0.032, h * 0.46, h * 0.014, 0, Math.PI * 2); ctx.fill(); }
+    }
+  };
+  if (L.mask === 'moon' || L.mask === 'wolverine' || L.mask === 'electro') {
+    if (L.mask === 'electro') {
+      ctx.fillStyle = L.accent || '#f2d21b';
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2, r = i % 2 ? w * 0.05 : w * 0.11; ctx.lineTo(fx + Math.cos(a) * r, h * 0.45 + Math.sin(a) * r * 1.6); }
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = '#0b0b0b';
+    for (const sd of [-1, 1]) { ctx.beginPath(); ctx.ellipse(fx + sd * w * 0.034, h * 0.46, w * 0.026, h * 0.03, sd * 0.35, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = '#f4f4f4';
+    for (const sd of [-1, 1]) { ctx.beginPath(); ctx.ellipse(fx + sd * w * 0.034, h * 0.46, w * 0.019, h * 0.018, sd * 0.35, 0, Math.PI * 2); ctx.fill(); }
+  } else if (L.mask === 'balaclava') {
+    ctx.fillStyle = L.skin; ctx.fillRect(fx - w * 0.06, h * 0.41, w * 0.12, h * 0.1); eye('#f0ece4', '#20140e');
+  } else if (L.mask === 'visor') {
+    ctx.fillStyle = '#111'; ctx.fillRect(fx - w * 0.09, h * 0.4, w * 0.18, h * 0.12);
+  } else {
+    ctx.fillStyle = '#1a1210';
+    ctx.fillRect(fx - w * 0.05, h * 0.4, w * 0.035, h * 0.02); ctx.fillRect(fx + w * 0.015, h * 0.4, w * 0.035, h * 0.02);
+    eye('#f0ece4', L.eyes || '#20140e');
+    if (L.female) { ctx.fillStyle = '#120a08'; for (const sd of [-1, 1]) ctx.fillRect(fx + sd * w * 0.032 - w * 0.018, h * 0.435, w * 0.036, h * 0.008); }
+    if (L.mask === 'domino') {
+      ctx.fillStyle = '#0a0a0c'; ctx.beginPath(); ctx.ellipse(fx, h * 0.46, w * 0.075, h * 0.05, 0, 0, Math.PI * 2); ctx.fill();
+      eye('#e8e8e8', '#3a6a3a');
+    }
+    ctx.fillStyle = L.lips || 'rgba(80,30,25,0.8)'; ctx.fillRect(fx - w * 0.025, h * 0.64, w * 0.05, h * (L.lips ? 0.024 : 0.018));
+    if (L.beard) { ctx.fillStyle = L.beard; ctx.fillRect(fx - w * 0.06, h * 0.6, w * 0.12, h * 0.16); }
+    ctx.fillStyle = 'rgba(0,0,0,0.1)'; ctx.fillRect(fx - w * 0.06, h * 0.6, w * 0.12, h * 0.12);
+    if (L.mask === 'bandana') { ctx.fillStyle = L.bandana || '#a01818'; ctx.fillRect(fx - w * 0.1, h * 0.55, w * 0.2, h * 0.22); }
+  }
+  if (L.goo) gooOverlay(ctx, w, h, rnd, true);
+}
+
+// Black symbiote patches crawling over an infected civilian.
+function gooOverlay(ctx, w, h, rnd, face) {
+  ctx.fillStyle = '#050407';
+  for (let i = 0; i < 9; i++) {
+    const x = rnd() * w, y = rnd() * h, r = (0.08 + rnd() * 0.18) * Math.min(w, h);
+    ctx.beginPath();
+    for (let k = 0; k < 9; k++) { const a = (k / 9) * Math.PI * 2, rr = r * (0.6 + rnd() * 0.6); ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+    ctx.closePath(); ctx.fill();
+  }
+  if (face) {
+    const fx = w * 0.25;
+    ctx.fillStyle = '#050407'; ctx.fillRect(fx - w * 0.1, h * 0.3, w * 0.2, h * 0.3);
+    ctx.fillStyle = '#f2f2f2';
+    for (const sd of [-1, 1]) {
+      ctx.beginPath(); ctx.moveTo(fx + sd * w * 0.01, h * 0.5); ctx.lineTo(fx + sd * w * 0.07, h * 0.36); ctx.lineTo(fx + sd * w * 0.05, h * 0.5); ctx.closePath(); ctx.fill();
+    }
+  }
+}
+
+function paintSymbiote(part, look, w, h, ctx, rnd) {
+  noiseFill(ctx, w, h, look.symBase || '#060508', 0.06, rnd, 2);
+  const t = look.symType || 'crawler';
+  if (t === 'electro' && part !== 'head') zigzag(ctx, w * 0.25, 0, w * 0.25, h, 6, w * 0.03, Math.max(3, w * 0.012), '#d8c21a');
+  if (part === 'chest' && t === 'venom') { symMark(ctx, w * 0.25, h * 0.5, h * 0.9, '#efefef'); symMark(ctx, w * 0.75, h * 0.5, h * 0.8, '#efefef'); }
+  if (part === 'head') {
+    const fx = w * 0.25;
+    if (t === 'venom' || t === 'crawler' || t === 'wolverine') {
+      const big = t === 'venom' ? 1.35 : 1;
+      ctx.fillStyle = '#f2f2f2';
+      for (const sd of [-1, 1]) {
+        ctx.beginPath();
+        const cx = fx + sd * w * 0.045 * big, cy = h * 0.42;
+        ctx.moveTo(cx - sd * w * 0.01, cy + h * 0.05 * big);
+        ctx.lineTo(cx + sd * w * 0.075 * big, cy - h * 0.16 * big);
+        ctx.lineTo(cx + sd * w * 0.055 * big, cy + h * 0.03);
+        ctx.lineTo(cx + sd * w * 0.025, cy + h * 0.11 * big);
+        ctx.closePath(); ctx.fill();
+      }
+      const mw = t === 'venom' ? 0.11 : 0.07;
+      ctx.fillStyle = '#3a0508';
+      ctx.beginPath(); ctx.ellipse(fx, h * 0.68, w * mw, h * 0.09, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#f4f0e6';
+      const n = t === 'venom' ? 8 : 5;
+      for (let i = -n; i <= n; i++) {
+        const x = fx + i * w * (mw / n) * 0.95;
+        ctx.beginPath(); ctx.moveTo(x - 4, h * 0.61); ctx.lineTo(x + 4, h * 0.61); ctx.lineTo(x, h * 0.68); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(x - 4, h * 0.76); ctx.lineTo(x + 4, h * 0.76); ctx.lineTo(x, h * 0.69); ctx.fill();
+      }
+    } else {
+      // smooth lens-like eyes (Black Cat / Electro hosts)
+      ctx.fillStyle = '#f4f4f4';
+      for (const sd of [-1, 1]) { ctx.beginPath(); ctx.ellipse(fx + sd * w * 0.04, h * 0.45, w * 0.03, h * 0.045, sd * 0.5, 0, Math.PI * 2); ctx.fill(); }
+      if (t === 'electro') { ctx.fillStyle = '#d8c21a'; ctx.fillRect(fx - w * 0.005, h * 0.2, w * 0.01, h * 0.2); }
+    }
+  }
+}
+
 function paintEnemy(part, look, rnd) {
   const dims = { chest: [512, 128], abdomen: [512, 128], pelvis: [512, 128], upperArm: [256, 256], foreArm: [256, 256], hand: [128, 64],
     thigh: [256, 256], shin: [256, 256], foot: [128, 64], head: [512, 256], neck: [256, 64], joint: [128, 64] };
   const [w, h] = dims[part];
   const [c, ctx] = canvas(w, h);
-  if (look.symbiote) {
-    noiseFill(ctx, w, h, '#060508', 0.06, rnd, 2);
-    if (part === 'head') {
-      // jagged white eyes and a fanged maw
-      ctx.fillStyle = '#f2f2f2';
-      for (const sd of [-1, 1]) {
-        ctx.beginPath();
-        const cx = w * 0.25 + sd * w * 0.045, cy = h * 0.42;
-        ctx.moveTo(cx - sd * w * 0.01, cy + h * 0.04);
-        ctx.lineTo(cx + sd * w * 0.07, cy - h * 0.14);
-        ctx.lineTo(cx + sd * w * 0.05, cy + h * 0.02);
-        ctx.lineTo(cx + sd * w * 0.025, cy + h * 0.1);
-        ctx.closePath(); ctx.fill();
-      }
-      ctx.fillStyle = '#3a0508';
-      ctx.beginPath(); ctx.ellipse(w * 0.25, h * 0.66, w * 0.07, h * 0.08, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#f4f0e6';
-      for (let i = -5; i <= 5; i++) {
-        const x = w * 0.25 + i * w * 0.012;
-        ctx.beginPath(); ctx.moveTo(x - 4, h * 0.6); ctx.lineTo(x + 4, h * 0.6); ctx.lineTo(x, h * 0.66); ctx.fill();
-        ctx.beginPath(); ctx.moveTo(x - 4, h * 0.73); ctx.lineTo(x + 4, h * 0.73); ctx.lineTo(x, h * 0.67); ctx.fill();
-      }
-    }
-    return tex(c);
-  }
-  const { jacket, pants, skin, shoe, hat, hair } = look;
+  if (look.symbiote) { paintSymbiote(part, look, w, h, ctx, rnd); return tex(c); }
+  const L = { skin: '#c68f6e', top: '#333', pants: '#2a3a5a', shoe: '#1a1a1a', hair: '#1a1410', topKind: 'jacket', ...look };
+  if (look.jacket) L.top = look.jacket;
+  const body = L.topKind === 'body';
+  const sleeve = L.sleeve || L.top;
+  const pat = L.pattern;
+  const suitFill = (col, amt = 0.07) => noiseFill(ctx, w, h, col, amt, rnd, 2);
   switch (part) {
-    case 'chest': case 'abdomen': case 'upperArm': {
-      noiseFill(ctx, w, h, jacket, 0.09, rnd, 2);
-      if (part !== 'upperArm') {
+    case 'chest': case 'abdomen': {
+      suitFill(L.top, body ? 0.05 : 0.09);
+      if (L.topKind === 'suit') {
+        if (part === 'chest') {
+          ctx.fillStyle = L.shirt || '#f2f0ea';
+          ctx.beginPath(); ctx.moveTo(w * 0.16, 0); ctx.lineTo(w * 0.34, 0); ctx.lineTo(w * 0.25, h); ctx.closePath(); ctx.fill();
+        } else { ctx.fillStyle = L.shirt || '#f2f0ea'; ctx.fillRect(w * 0.235, 0, w * 0.03, h * 0.5); }
+        ctx.fillStyle = L.tie || '#7a1a1a'; ctx.fillRect(w * 0.243, 0, w * 0.014, h);
+      } else if (L.topKind === 'jacket' || L.topKind === 'hoodie') {
         ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(w * 0.25 - 2, 0, 4, h);
-        if (look.stripe) { ctx.fillStyle = look.stripe; ctx.fillRect(0, h * 0.35, w, h * 0.1); }
-      } else if (look.stripe) { ctx.fillStyle = look.stripe; ctx.fillRect(w * 0.45, 0, w * 0.1, h); }
+      } else if (L.topKind === 'tee' && part === 'chest') {
+        ctx.fillStyle = L.skin; ctx.beginPath(); ctx.ellipse(w * 0.25, 0, w * 0.05, h * 0.18, 0, 0, Math.PI * 2); ctx.fill();
+      }
+      if (L.stripe) { ctx.fillStyle = L.stripe; ctx.fillRect(0, h * 0.35, w, h * 0.1); }
+      if (pat === 'wolverine') {
+        for (const cx of [0.5, 0.0, 1.0]) { ctx.fillStyle = L.accent || '#1e3a8a'; ctx.fillRect((cx - 0.09) * w, 0, w * 0.18, h); }
+        if (part === 'chest') { ctx.fillStyle = L.accent || '#1e3a8a'; ctx.fillRect(0, 0, w, h * 0.22); }
+        ctx.fillStyle = '#0b0b0b';
+        for (const cx of [0.5, 0.0, 1.0]) for (let i = 0; i < 3; i++) { const y = h * (0.3 + i * 0.22); ctx.beginPath(); ctx.moveTo((cx - 0.09) * w, y); ctx.lineTo((cx - 0.02) * w, y + h * 0.06); ctx.lineTo((cx - 0.09) * w, y + h * 0.1); ctx.fill(); ctx.beginPath(); ctx.moveTo((cx + 0.09) * w, y); ctx.lineTo((cx + 0.02) * w, y + h * 0.06); ctx.lineTo((cx + 0.09) * w, y + h * 0.1); ctx.fill(); }
+      }
+      if (pat === 'electro') zigzag(ctx, w * 0.25, 0, w * 0.25, h, 4, w * 0.04, w * 0.03, L.accent || '#f2d21b');
+      if (pat === 'moon' && part === 'chest') { ctx.fillStyle = '#9aa0a8'; ctx.beginPath(); ctx.arc(w * 0.25, h * 0.5, h * 0.25, -1.2, 1.2); ctx.arc(w * 0.27, h * 0.5, h * 0.2, 1.1, -1.1, true); ctx.fill(); }
+      if (pat === 'cat' && part === 'chest') { ctx.fillStyle = '#e8e8ea'; ctx.beginPath(); ctx.moveTo(w * 0.2, 0); ctx.lineTo(w * 0.3, 0); ctx.lineTo(w * 0.25, h * 0.45); ctx.closePath(); ctx.fill(); }
+      if (pat === 'shield' && part === 'chest') { ctx.fillStyle = '#e8e8ea'; ctx.fillRect(w * 0.2, h * 0.35, w * 0.1, h * 0.06); ctx.fillStyle = '#c21a1a'; ctx.fillRect(w * 0.23, h * 0.5, w * 0.04, h * 0.2); }
+      if (pat === 'armor') { ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 3; for (let x = 0; x < w; x += w / 12) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); } ctx.fillStyle = L.accent || '#b0161c'; ctx.fillRect(w * 0.22, h * 0.4, w * 0.06, h * 0.08); }
+      if (pat === 'vulture') { ctx.fillStyle = 'rgba(0,0,0,0.18)'; for (let i = 0; i < 40; i++) { ctx.beginPath(); ctx.ellipse(rnd() * w, rnd() * h, w * 0.02, h * 0.06, 0, 0, Math.PI * 2); ctx.fill(); } }
       if (part === 'chest' && look.logo) { ctx.fillStyle = look.logo; ctx.font = `bold ${h * 0.3}px sans-serif`; ctx.textAlign = 'center'; ctx.fillText(look.logoText, w * 0.25, h * 0.55); }
+      if (L.goo) gooOverlay(ctx, w, h, rnd, false);
       break;
     }
-    case 'foreArm': {
-      noiseFill(ctx, w, h, jacket, 0.09, rnd, 2);
-      if (look.rolled) { ctx.fillStyle = skin; ctx.fillRect(0, h * 0.45, w, h); }
+    case 'upperArm': case 'foreArm': {
+      let col = sleeve;
+      if (L.topKind === 'tee' && part === 'foreArm') col = L.skin;
+      suitFill(col, body ? 0.05 : 0.09);
+      if (L.topKind === 'tee' && part === 'upperArm') { ctx.fillStyle = L.skin; ctx.fillRect(0, h * 0.55, w, h * 0.45); }
+      if (L.rolled && part === 'foreArm') { ctx.fillStyle = L.skin; ctx.fillRect(0, h * 0.45, w, h); }
+      if (pat === 'wolverine' && part === 'upperArm') { ctx.fillStyle = L.accent || '#1e3a8a'; ctx.fillRect(0, 0, w, h * 0.45); }
+      if (pat === 'electro') zigzag(ctx, w * 0.75, 0, w * 0.75, h, 3, w * 0.05, w * 0.06, L.accent || '#f2d21b');
+      if (L.stripe && part === 'upperArm') { ctx.fillStyle = L.stripe; ctx.fillRect(w * 0.45, 0, w * 0.1, h); }
+      if (L.gloves && part === 'foreArm') { ctx.fillStyle = L.gloves; ctx.fillRect(0, h * 0.62, w, h * 0.38); }
+      if (L.goo) gooOverlay(ctx, w, h, rnd, false);
       break;
     }
-    case 'pelvis': case 'thigh': {
-      noiseFill(ctx, w, h, pants, 0.14, rnd, 1);
-      if (part === 'pelvis') { ctx.fillStyle = '#151210'; ctx.fillRect(0, 0, w, h * 0.14); }
+    case 'pelvis': case 'thigh': case 'shin': {
+      suitFill(body ? (L.legs || L.top) : L.pants, body ? 0.05 : 0.14);
+      if (part === 'pelvis') { ctx.fillStyle = L.belt || (body ? 'rgba(0,0,0,0.2)' : '#151210'); ctx.fillRect(0, 0, w, h * 0.14); }
+      if (pat === 'wolverine' && part === 'pelvis') { ctx.fillStyle = L.accent || '#1e3a8a'; ctx.fillRect(0, 0, w, h * 0.7); }
+      if (pat === 'electro' && part !== 'pelvis') zigzag(ctx, w * 0.25, 0, w * 0.25, h, 3, w * 0.05, w * 0.05, L.accent || '#f2d21b');
+      if (part === 'shin') {
+        if (L.boots) { ctx.fillStyle = L.boots; ctx.fillRect(0, h * 0.42, w, h * 0.58); }
+        else if (!body) { ctx.fillStyle = L.shoe; ctx.fillRect(0, h * 0.9, w, h * 0.1); }
+      }
+      if (L.goo) gooOverlay(ctx, w, h, rnd, false);
       break;
     }
-    case 'shin': { noiseFill(ctx, w, h, pants, 0.14, rnd, 1); ctx.fillStyle = shoe; ctx.fillRect(0, h * 0.9, w, h * 0.1); break; }
-    case 'foot': noiseFill(ctx, w, h, shoe, 0.05, rnd, 2); ctx.fillStyle = '#ddd'; ctx.fillRect(0, h * 0.62, w, h * 0.12); break;
-    case 'hand': case 'neck': case 'joint': noiseFill(ctx, w, h, part === 'joint' ? jacket : skin, 0.04, rnd, 2); break;
-    case 'head': {
-      noiseFill(ctx, w, h, skin, 0.05, rnd, 2);
-      // face (front at u = 0.25)
-      const fx = w * 0.25;
-      ctx.fillStyle = hair; ctx.fillRect(0, 0, w, h * 0.3);
-      ctx.fillRect(fx + w * 0.12, 0, w * 0.26, h * 0.62);
-      if (hat) { ctx.fillStyle = hat; ctx.fillRect(0, 0, w, h * 0.36); ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(0, h * 0.32, w, h * 0.04); }
-      ctx.fillStyle = '#1a1210';
-      ctx.fillRect(fx - w * 0.05, h * 0.4, w * 0.035, h * 0.02); ctx.fillRect(fx + w * 0.015, h * 0.4, w * 0.035, h * 0.02);
-      ctx.fillStyle = '#f0ece4';
-      ctx.beginPath(); ctx.ellipse(fx - w * 0.032, h * 0.46, w * 0.016, h * 0.022, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(fx + w * 0.032, h * 0.46, w * 0.016, h * 0.022, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#20140e';
-      ctx.beginPath(); ctx.arc(fx - w * 0.032, h * 0.46, h * 0.014, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(fx + w * 0.032, h * 0.46, h * 0.014, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = 'rgba(80,30,25,0.8)'; ctx.fillRect(fx - w * 0.025, h * 0.64, w * 0.05, h * 0.018);
-      if (look.mask) { ctx.fillStyle = look.mask; ctx.fillRect(fx - w * 0.09, h * 0.52, w * 0.18, h * 0.2); }
-      ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(fx - w * 0.06, h * 0.6, w * 0.12, h * 0.12);
-      break;
-    }
+    case 'foot': suitFill(L.boots || L.shoe, 0.05); if (!L.boots && !body) { ctx.fillStyle = '#ddd'; ctx.fillRect(0, h * 0.62, w, h * 0.12); } break;
+    case 'hand': suitFill(L.gloves || (body ? L.top : L.skin), 0.04); break;
+    case 'neck': suitFill(body && !['domino'].includes(L.mask) ? L.top : L.skin, 0.04); break;
+    case 'joint': suitFill(L.top, 0.04); break;
+    case 'head': paintHead(ctx, w, h, L, rnd); break;
   }
   return tex(c);
 }
 
 export const SYM_U = { uTime: { value: 0 } };
+export function lookMaterial(part, look) { return enemyMaterial(part, look, rng(77)); }
 function enemyMaterial(part, look, rnd) {
   const map = paintEnemy(part, look, rnd);
   if (!look.symbiote) return new THREE.MeshStandardMaterial({ map, roughness: part === 'head' || part === 'hand' || part === 'neck' ? 0.55 : 0.85 });
   const m = new THREE.MeshPhysicalMaterial({ map, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.08, sheen: 1, sheenColor: new THREE.Color(0.25, 0.05, 0.35), emissive: 0x000000 });
+  const vein = { value: new THREE.Color(...(look.vein || [0.9, 0.04, 0.2])) };
   m.onBeforeCompile = (s) => {
     Object.assign(s.uniforms, SYM_U);
+    s.uniforms.uVein = vein;
     s.vertexShader = s.vertexShader
       .replace('#include <common>', `#include <common>\nuniform float uTime; varying vec3 vOP;\n${GLSL_NOISE}`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         vOP = position;
         transformed += normal * (vnoise(position * 30.0 + vec3(0.0, uTime * 2.0, 0.0)) - 0.5) * 0.012;`);
     s.fragmentShader = s.fragmentShader
-      .replace('#include <common>', `#include <common>\nuniform float uTime; varying vec3 vOP;\n${GLSL_NOISE}`)
+      .replace('#include <common>', `#include <common>\nuniform float uTime; uniform vec3 uVein; varying vec3 vOP;\n${GLSL_NOISE}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         float vn = fbm3(vOP * 9.0 + vec3(0.0, uTime * 0.25, 0.0));
         float vw = fwidth(vn);
-        totalEmissiveRadiance += (1.0 - smoothstep(0.0, 0.012 + vw, abs(vn - 0.5))) * (1.0 - smoothstep(0.02, 0.08, vw)) * vec3(0.9, 0.04, 0.2) * (0.35 + 0.3 * sin(uTime * 4.0 + vOP.y * 20.0));`);
+        totalEmissiveRadiance += (1.0 - smoothstep(0.0, 0.012 + vw, abs(vn - 0.5))) * (1.0 - smoothstep(0.02, 0.08, vw)) * uVein * (0.35 + 0.3 * sin(uTime * 4.0 + vOP.y * 20.0));`);
   };
   return m;
-}
-
-// Repaint the emblem-bearing suit parts (after toggling arachnophobia mode).
-export function repaintHero(char) {
-  for (const m of char.mats) {
-    if (m.userData.part !== 'chest') continue;
-    const old = [m.map, m.roughnessMap, m.userData.uMapB.value];
-    m.map = paintHero('chest', 'red');
-    const relief = paintHero('chest', 'relief');
-    m.roughnessMap = relief; m.bumpMap = relief;
-    m.userData.uMapB.value = paintHero('chest', 'black');
-    for (const t of old) t && t.dispose();
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -826,14 +929,21 @@ const BUILDS = {
   thug: { bulk: 1.12, arm: 1.1, waist: 1.12, shoulders: 1.0, pec: 0.5, abs: false, jaw: 0.3, scale: 1.0 },
   symbiote: { bulk: 0.92, arm: 1.0, waist: 0.8, shoulders: 1.08, pec: 1.2, abs: true, jaw: 0.9, scale: 1.08 },
   brute: { bulk: 1.45, arm: 1.2, waist: 1.05, shoulders: 1.3, pec: 1.6, abs: true, jaw: 0.5, scale: 1.55 },
+  female: { bulk: 0.88, arm: 0.9, waist: 0.8, shoulders: 0.88, pec: 0, bust: 1, hips: 1.16, abs: false, jaw: 0.8, scale: 0.97 },
+  lean: { bulk: 1.0, arm: 1.08, waist: 0.95, shoulders: 1.0, pec: 0.8, abs: true, jaw: 0.5, scale: 1.0 },
+  big: { bulk: 1.28, arm: 1.28, waist: 1.0, shoulders: 1.16, pec: 1.4, abs: true, jaw: 0.35, scale: 1.07 },
+  stocky: { bulk: 1.16, arm: 1.22, waist: 1.0, shoulders: 1.14, pec: 1.2, abs: true, jaw: 0.35, scale: 0.94 },
+  kingpin: { bulk: 1.65, arm: 1.15, waist: 1.55, shoulders: 1.15, pec: 0.3, abs: false, jaw: 0.15, scale: 1.16 },
+  venom: { bulk: 1.3, arm: 1.32, waist: 0.88, shoulders: 1.28, pec: 1.7, abs: true, jaw: 0.95, scale: 1.32 },
+  old: { bulk: 0.95, arm: 0.9, waist: 1.08, shoulders: 0.94, pec: 0.15, abs: false, jaw: 0.4, scale: 0.93 },
 };
 const geoCache = {};
 
 export class Character {
   constructor(kind, look = {}) {
     this.kind = kind;
-    const build = BUILDS[kind === 'gunner' ? 'thug' : kind];
-    const key = kind === 'gunner' ? 'thug' : kind;
+    const key = look.build || (kind === 'gunner' ? 'thug' : kind);
+    const build = BUILDS[key] || BUILDS.thug;
     const G = geoCache[key] || (geoCache[key] = buildGeometries(build));
     const rnd = rng((look.seed || 1) * 7919);
     const mats = {};
@@ -902,8 +1012,11 @@ export class Character {
         head.add(g);
       }
     }
-    root.scale.setScalar(build.scale);
-    this.scale = build.scale;
+    root.scale.setScalar(build.scale * (look.scale || 1));
+    this.scale = build.scale * (look.scale || 1);
+    this.bulk = k;
+    this.look = look;
+    if (look.acc) addAccessories(this, look);
 
     this.pose = new Pose();
     this.tmpPose = new Pose();
@@ -967,6 +1080,7 @@ export class Character {
   dispose() {
     this.root.removeFromParent();
     for (const m of this.mats) { m.map?.dispose(); m.dispose(); }
+    if (this.accMats) for (const m of this.accMats) m.dispose();
   }
 }
 const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _q1 = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _qi = new THREE.Quaternion();

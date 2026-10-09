@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Character, P, ACT, evalAction, Pose } from './character.js';
+import { animateAccessories } from './accessories.js';
 import { L } from './city.js';
 import { clamp, damp, dampAngle, rng, lerp } from './util.js';
 
@@ -10,7 +11,18 @@ const TYPES = {
   gunner: { hp: 40, speed: 5.0, reach: 0, dmg: 6, kind: 'gunner', ranged: true, weapon: 'gun', xp: 30 },
   crawler: { hp: 65, speed: 8.5, reach: 2.3, dmg: 10, atkDur: 0.8, atk: 'slash', kind: 'symbiote', leap: true, xp: 35, evade: 0.3 },
   brute: { hp: 320, speed: 4.0, reach: 3.8, dmg: 20, atkDur: 1.35, atk: 'smash', kind: 'brute', heavy: true, radius: 0.95, xp: 150 },
+  // symbiote-controlled civilians: two arms, two legs, two eyes — never spider-like
+  infected: { hp: 60, speed: 7.6, reach: 2.2, dmg: 9, atkDur: 0.8, atk: 'slash', kind: 'thug', crawl: true, leap: true, xp: 30, evade: 0.15, infected: true },
+  assassin: { hp: 60, speed: 4.5, reach: 0, dmg: 14, kind: 'thug', build: 'lean', ranged: true, sniper: true, xp: 45 },
+  henchman: { hp: 60, speed: 5.6, reach: 2.3, dmg: 10, atkDur: 0.95, atk: 'punch', kind: 'thug', xp: 28, suit: true },
+  hgun: { hp: 45, speed: 5.0, reach: 0, dmg: 7, kind: 'gunner', ranged: true, weapon: 'gun', xp: 32, suit: true },
+  leader: { hp: 140, speed: 5.2, reach: 2.5, dmg: 12, atkDur: 1.0, atk: 'punch', kind: 'thug', build: 'big', xp: 80, blocks: 0.4 },
 };
+const GANGS = {
+  r7: { jacket: '#8a1414', bandana: '#c81e1e', stripe: '#e8e8e8' },
+  pa: { jacket: '#1b3f8a', bandana: '#2a62c9', stripe: '#d8c060' },
+};
+const CIVVY = ['#6a7f9a', '#b4a58a', '#7a3b4a', '#3f6a5a', '#9a9a9a', '#c48a3a', '#4a4a6a'];
 const JACKETS = ['#2b2f36', '#5a1e1e', '#1f3b2a', '#3b2a1a', '#1d2747', '#4a4a4a', '#6b5a2a', '#232323'];
 const PANTS = ['#2a3a5a', '#1f2a3f', '#333333', '#3a3326', '#26303a'];
 const SKINS = ['#e0b49a', '#c68f6e', '#8d5a3c', '#5e3b26', '#f1c9ae', '#a8714f'];
@@ -35,17 +47,24 @@ function makeWeapon(kind) {
 }
 
 export class Enemy {
-  constructor(game, type, pos, ev) {
+  constructor(game, type, pos, ev, opts = {}) {
     this.id = ENEMY_ID++;
-    this.game = game; this.type = type; this.cfg = TYPES[type]; this.ev = ev;
+    this.game = game; this.type = type; this.cfg = { ...TYPES[type], ...(opts.cfg || {}) }; this.ev = ev;
+    this.name = opts.name || null;
     const r = rng(this.id * 31 + 7);
     const sym = this.cfg.kind === 'symbiote' || this.cfg.kind === 'brute';
-    const look = sym ? { symbiote: true, seed: this.id } : {
+    let look = sym ? { symbiote: true, seed: this.id } : {
       seed: this.id, jacket: JACKETS[Math.floor(r() * JACKETS.length)], pants: PANTS[Math.floor(r() * PANTS.length)],
       skin: SKINS[Math.floor(r() * SKINS.length)], shoe: r() < 0.5 ? '#e8e8e8' : '#1a1a1a', hair: '#1a1410',
       hat: r() < 0.45 ? ['#222', '#7a1a1a', '#1a3a5a', '#3a3a3a'][Math.floor(r() * 4)] : null,
-      stripe: r() < 0.35 ? '#c9c9c9' : null, rolled: r() < 0.3, mask: type === 'gunner' && r() < 0.6 ? '#141414' : null,
+      stripe: r() < 0.35 ? '#c9c9c9' : null, rolled: r() < 0.3, mask: type === 'gunner' && r() < 0.6 ? 'bandana' : null, bandana: '#141414',
     };
+    if (this.cfg.infected) look = { ...look, jacket: CIVVY[Math.floor(r() * CIVVY.length)], hat: null, stripe: null, goo: true, topKind: r() < 0.5 ? 'tee' : 'jacket' };
+    if (this.cfg.suit) look = { ...look, jacket: '#141418', topKind: 'suit', tie: '#1a1a1a', shirt: '#e8e8e8', pants: '#141418', shoe: '#0c0c0c', hat: null, stripe: null, mask: null };
+    if (type === 'assassin') look = { ...look, jacket: '#2a2d33', topKind: 'body', pattern: 'armor', accent: '#b0161c', mask: 'visor', gloves: '#141416', boots: '#141416', hat: null, stripe: null, acc: ['visor', 'rifle'] };
+    if (opts.gang && GANGS[opts.gang]) look = { ...look, ...GANGS[opts.gang], mask: r() < 0.5 ? 'bandana' : null, hat: null };
+    if (opts.look) look = { ...look, ...opts.look };
+    if (this.cfg.build) look.build = look.build || this.cfg.build;
     this.char = new Character(this.cfg.kind, look);
     game.scene.add(this.char.root);
     if (this.cfg.weapon) {
@@ -54,7 +73,7 @@ export class Enemy {
       if (this.cfg.weapon === 'gun') this.weapon.position.set(0, -0.08, 0.02);
     }
     this.scale = this.char.scale;
-    this.maxHp = this.hp = Math.round(this.cfg.hp * (1 + 0.12 * (game.level - 1)));
+    this.maxHp = this.hp = Math.round((opts.hp || this.cfg.hp) * (1 + 0.12 * (game.level - 1)));
     this.pos = pos.clone();
     this.vel = new THREE.Vector3();
     this.yaw = r() * Math.PI * 2;
@@ -135,11 +154,11 @@ export class Enemy {
         if (playerDead) { this.setState('idle'); this.alerted = false; break; }
         faceP();
         if (this.cfg.ranged) {
-          const want = dH < 9 ? -1 : dH > 22 ? 1 : 0;
+          const want = this.cfg.sniper ? 0 : dH < 9 ? -1 : dH > 22 ? 1 : 0;
           const dir = _v2.copy(toP).normalize();
           const tang = new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar(this.strafe * 0.6);
           this.walk(dir.multiplyScalar(want).add(tang), this.cfg.speed * 0.7, dt);
-          if (this.cd <= 0 && dH < 35 && this.game.requestToken(this, true)) { this.setState('aim'); }
+          if (this.cd <= 0 && dH < (this.cfg.sniper ? 80 : 35) && this.game.requestToken(this, true)) { this.setState('aim'); }
           break;
         }
         if (this.cfg.leap && this.cd <= 0 && dH > 4.5 && dH < 15 && Math.abs(dy) < 15 && Math.random() < dt * 1.2) { this.tryLeap(); break; }
@@ -173,7 +192,7 @@ export class Enemy {
       }
       case 'aim': {
         faceP();
-        const dur = 1.05;
+        const dur = this.cfg.sniper ? 1.6 : 1.05;
         this.targetsPlayer = true;
         this.threatT = dur - this.t;
         const tip = this.gunTip(_v2);
@@ -184,12 +203,12 @@ export class Enemy {
       }
       case 'fire': {
         faceP();
-        if (this.t > this.shots * 0.13 && this.shots < 3) {
+        if (this.t > this.shots * 0.13 && this.shots < (this.cfg.sniper ? 1 : 3)) {
           this.shots++;
           const tip = this.gunTip(_v2);
           const pc = pl.chestPos(new THREE.Vector3());
           const fast = pl.vel.length() > 18;
-          const miss = this.perfectDodged || pl.invuln > 0 || Math.random() < (fast ? 0.75 : 0.25);
+          const miss = this.perfectDodged || pl.invuln > 0 || Math.random() < (fast ? 0.75 : this.cfg.sniper ? 0.15 : 0.25);
           if (miss) pc.add(new THREE.Vector3((Math.random() - 0.5) * 3, (Math.random() - 0.3) * 2, (Math.random() - 0.5) * 3));
           g.fx.tracer(tip, pc);
           g.fx.add.emit(tip, 4, { speed: 3, color: [4, 2.5, 0.8], life: 0.08, size: 0.25, gravity: 0 });
@@ -282,6 +301,7 @@ export class Enemy {
 
   gunTip(out) {
     if (this.weapon && this.weapon.userData.tip) return this.weapon.userData.tip.getWorldPosition(out);
+    if (this.char.acc && this.char.acc.tip) return this.char.acc.tip.getWorldPosition(out);
     return this.chest(out);
   }
 
@@ -339,7 +359,7 @@ export class Enemy {
         else if (this.state === 'yanked') { this.setState('stagger'); this.stun = 0.6; }
         else {
           if (this.spiked) { g.fx.ring(this.pos, 4, 0.4); g.cam.shake(0.2); this.hp -= 8; this.spiked = false; }
-          if (impact > 26 && this.fallStart - this.pos.y > 14) { this.hp = 0; }
+          if (impact > 26 && this.fallStart - this.pos.y > 14 && !this.isBoss) { this.hp = 0; }
           if (this.hp <= 0) { this.ko(new THREE.Vector3(0, 0, 0), { kb: 0 }); this.setState('dead'); this.onDeathLand(); }
           else { this.setState('down'); }
           this.vel.set(0, 0, 0);
@@ -538,7 +558,7 @@ export class Enemy {
   // ------------------------------------------------------------------------
   animate(dt) {
     const c = this.char, p = this.base.reset(), t = this.game.time + this.phase;
-    const sym = this.cfg.kind === 'symbiote';
+    const sym = this.cfg.kind === 'symbiote' || this.cfg.crawl;
     const mv = this.moving || 0;
     this.moving = 0;
     let k = 12;
@@ -573,8 +593,11 @@ export class Enemy {
     c.drive(p, k, dt);
     c.root.position.copy(this.pos);
     c.root.rotation.y = this.yaw;
+    if (c.acc) animateAccessories(c, dt, { t: this.game.time, speed: this.vel.length() });
   }
 }
+
+export { TYPES };
 
 // ---------------------------------------------------------------------------
 // Encounters: street crimes, rooftop gangs, symbiote outbreaks and hives.
@@ -677,6 +700,7 @@ export class Encounters {
     if (crimes < 2 && this.spawnT <= 0) { this.createEvent(); this.spawnT = 5; }
     for (const ev of this.events) {
       if (ev.cleared) continue;
+      if (ev.type === 'hive' && !ev.hive.active) { if (ev.spawned) this.despawn(ev); continue; }
       const d = Math.hypot(ev.pos.x - P.x, ev.pos.z - P.z);
       if (!ev.spawned && d < 125 && g.enemies.length < 22) this.spawn(ev);
       if (!ev.spawned) continue;

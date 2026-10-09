@@ -388,6 +388,8 @@ export class City {
     this.buildings = [];
     this.lamps = [];
     this.r = rng(1337);
+    this.places = {};
+    this.signs = [];
     this.bmat = makeBuildingMaterial();
     this.generate();
     this.buildGrid();
@@ -414,7 +416,7 @@ export class City {
     const FLOOR = { glass: 3.9, office: 3.6, brick: 3.2, deco: 3.5 };
     const BAY = { glass: 1.6, office: 3.0, brick: 2.6, deco: 2.2 };
     const billboardBlocks = new Set(['4,9', '5,9', '4,10']);
-    const landmarks = { '4,7': 'empire', '3,14': 'tower' };
+    const landmarks = { '4,7': 'empire', '3,14': 'tower', '6,9': 'hospital', '5,6': 'bugle', '0,8': 'church', '2,0': 'warehouse' };
 
     for (let i = 0; i < L.COLS; i++) {
       for (let j = 0; j < L.ROWS; j++) {
@@ -504,6 +506,8 @@ export class City {
     this.buildLamps();
     this.buildPark();
     this.buildBridge();
+    this.buildRykers();
+    this.buildSigns();
     this.buildFarShores();
     this.buildCars();
     this.placeHives();
@@ -541,8 +545,31 @@ export class City {
       }
       bld.tiers.push(addTier({ ...base, x0: cx - 2.5, z0: cz - 2.5, x1: cx + 2.5, z1: cz + 2.5, y0: y, y1: y + 28, lit: 0.0 }));
       this.spire = { x: cx, z: cz, y: y + 28, h: 32 };
+    } else if (kind === 'hospital') {
+      const base = { style: 1, color: [0.78, 0.78, 0.76], seed: 0.12, lit: 0.6, floorH: 3.6, bay: 2.6, bill: 0 };
+      bld.tiers.push(addTier({ ...base, x0, z0: z0 + 8, x1, z1, y0: 0, y1: 34 }));
+      bld.tiers.push(addTier({ ...base, x0: x0 + 6, z0: z0 + 14, x1: x1 - 6, z1: z1 - 4, y0: 34, y1: 58 }));
+      this.places.hospital = { x0, z0, x1, z1, top: 58, bay: new THREE.Vector3(cx, 0, z0 + 3), roof: new THREE.Vector3(cx, 58, (z0 + z1) / 2 + 5) };
+    } else if (kind === 'bugle') {
+      const base = { style: 3, color: [0.58, 0.55, 0.5], seed: 0.44, lit: 0.55, floorH: 3.5, bay: 2.2, bill: 0 };
+      bld.tiers.push(addTier({ ...base, x0, z0, x1, z1, y0: 0, y1: 52 }));
+      bld.tiers.push(addTier({ ...base, x0: x0 + 8, z0: z0 + 6, x1: x1 - 8, z1: z1 - 6, y0: 52, y1: 96 }));
+      this.places.bugle = { x0: x0 + 8, z0: z0 + 6, x1: x1 - 8, z1: z1 - 6, top: 96, roof: new THREE.Vector3(cx, 96, cz), street: new THREE.Vector3(cx, 0, z1 + 6) };
+    } else if (kind === 'church') {
+      const base = { style: 3, color: [0.42, 0.38, 0.34], seed: 0.66, lit: 0.0, floorH: 6, bay: 3.2, bill: 0 };
+      bld.tiers.push(addTier({ ...base, x0: cx - 12, z0: z0 + 4, x1: cx + 12, z1: z1 - 4, y0: 0, y1: 18 }));
+      bld.tiers.push(addTier({ ...base, x0: cx - 5, z0: z1 - 12, x1: cx + 5, z1: z1 - 2, y0: 0, y1: 38 }));
+      this.places.church = { cx, cz, front: new THREE.Vector3(cx, 0, z1 + 6), spire: new THREE.Vector3(cx, 38, z1 - 7), nave: { x0: cx - 12, z0: z0 + 4, x1: cx + 12, z1: z1 - 4 } };
+    } else if (kind === 'warehouse') {
+      const base = { style: 2, color: [0.36, 0.2, 0.15], seed: 0.88, lit: 0.1, floorH: 4.5, bay: 3.4, bill: 0 };
+      bld.tiers.push(addTier({ ...base, x0: x0 + 10, z0: z0 + 6, x1: x1 - 10, z1: z1 - 6, y0: 0, y1: 12 }));
+      for (const [ax, az] of [[x0, z0], [x1 - 9, z0], [x0, z1 - 9], [x1 - 9, z1 - 9]]) {
+        bld.tiers.push(addTier({ ...base, style: 1, color: [0.4, 0.38, 0.36], seed: ax * 0.001, lit: 0.3, x0: ax, z0: az, x1: ax + 9, z1: az + 9, y0: 0, y1: 26 + r() * 10 }));
+      }
+      this.places.warehouse = { cx, cz, street: new THREE.Vector3(cx, 0, z1 + 8), roof: new THREE.Vector3(cx, 12, cz), corners: [[x0 + 4.5, z0 + 4.5], [x1 - 4.5, z0 + 4.5], [x0 + 4.5, z1 - 4.5], [x1 - 4.5, z1 - 4.5]] };
     } else {
       const base = { style: 0, color: [0.2, 0.23, 0.26], seed: 0.31, lit: 0.6, floorH: 4.0, bay: 1.5, bill: 0 };
+      this.places.fisk = { roof: new THREE.Vector3(cx, 318, cz), x0: x0 + 12, z0: z0 + 8, x1: x1 - 12, z1: z1 - 8, street: new THREE.Vector3(cx, 0, z1 + 6) };
       bld.tiers.push(addTier({ ...base, x0, z0, x1, z1, y0: 0, y1: 20 }));
       bld.tiers.push(addTier({ ...base, x0: x0 + 6, z0: z0 + 3, x1: x1 - 6, z1: z1 - 3, y0: 20, y1: 300 }));
       bld.tiers.push(addTier({ ...base, x0: x0 + 12, z0: z0 + 8, x1: x1 - 12, z1: z1 - 8, y0: 300, y1: 318 }));
@@ -841,6 +868,101 @@ export class City {
     this.bridge = { zc, x0: a0, x1: b1, deckY };
   }
 
+  // A prison island in the East River, reached by a low causeway with pylons to swing from.
+  buildRykers() {
+    const I = L.ISLAND;
+    const cx = I.x1 + 230, cz = L.Z0 + 150, w = 150, d = 120;
+    const land = new THREE.Mesh(new THREE.BoxGeometry(w, 4, d), new THREE.MeshStandardMaterial({ color: 0x3a3833, roughness: 1 }));
+    land.position.set(cx, -2, cz); land.receiveShadow = true;
+    this.scene.add(land);
+    this.boxes.push({ x0: cx - w / 2, y0: -4, z0: cz - d / 2, x1: cx + w / 2, y1: 0, z1: cz + d / 2, kind: 'bridge' });
+    this.tops.push({ x0: cx - w / 2, z0: cz - d / 2, x1: cx + w / 2, z1: cz + d / 2, y: 0 });
+    const gray = new THREE.MeshStandardMaterial({ color: 0x77736c, roughness: 0.95 });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x24262a, roughness: 0.8 });
+    const solid = (x0, y0, z0, x1, y1, z1, mat) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), mat);
+      m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); m.castShadow = true; m.receiveShadow = true;
+      this.scene.add(m);
+      this.boxes.push({ x0, y0, z0, x1, y1, z1, kind: 'bld' });
+      this.tops.push({ x0, z0, x1, z1, y: y1 });
+    };
+    // cell blocks
+    for (const [bx, bz, bw, bd, bh] of [[-40, -25, 34, 18, 16], [10, -30, 40, 16, 20], [-35, 18, 28, 22, 14], [18, 15, 36, 20, 24]]) solid(cx + bx - bw / 2, 0, cz + bz - bd / 2, cx + bx + bw / 2, bh, cz + bz + bd / 2, gray);
+    // perimeter wall and guard towers
+    const wt = 1.2, wh = 7, m = 6;
+    solid(cx - w / 2 + m, 0, cz - d / 2 + m, cx + w / 2 - m, wh, cz - d / 2 + m + wt, gray);
+    solid(cx - w / 2 + m, 0, cz + d / 2 - m - wt, cx + w / 2 - m, wh, cz + d / 2 - m, gray);
+    solid(cx + w / 2 - m - wt, 0, cz - d / 2 + m, cx + w / 2 - m, wh, cz + d / 2 - m, gray);
+    solid(cx - w / 2 + m, 0, cz - d / 2 + m, cx - w / 2 + m + wt, wh, cz - 6, gray);
+    solid(cx - w / 2 + m, 0, cz + 6, cx - w / 2 + m + wt, wh, cz + d / 2 - m, gray);
+    for (const [tx, tz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) solid(cx + tx * (w / 2 - m) - 3, 0, cz + tz * (d / 2 - m) - 3, cx + tx * (w / 2 - m) + 3, 15, cz + tz * (d / 2 - m) + 3, dark);
+    // causeway from Manhattan's promenade
+    const bx0 = I.x1, bx1 = cx - w / 2;
+    solid(bx0, 4, cz - 5, bx1, 6, cz + 5, dark);
+    for (let x = bx0 + 20; x < bx1 - 10; x += 38) solid(x - 2, -2, cz - 8, x + 2, 34, cz - 6, gray), solid(x - 2, -2, cz + 6, x + 2, 34, cz + 8, gray);
+    this.places.rykers = { center: new THREE.Vector3(cx, 0, cz), gate: new THREE.Vector3(cx - w / 2 + 2, 0, cz), bridgeStart: new THREE.Vector3(bx0 - 4, 0, cz), cell: new THREE.Vector3(cx + 10, 20, cz - 30), yard: new THREE.Vector3(cx - 5, 0, cz - 2) };
+  }
+
+  sign(text, pos, rotY, w, h, color = '#ff2a2a', bg = 'rgba(0,0,0,0)', font = 'bold 120px Impact, Arial Black, sans-serif') {
+    const c = document.createElement('canvas'); c.width = 1024; c.height = Math.round(1024 * h / w);
+    const g = c.getContext('2d');
+    g.fillStyle = bg; g.fillRect(0, 0, c.width, c.height);
+    g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle';
+    const fs = parseInt(font.match(/(\d+)px/)[1], 10);
+    const scale = Math.min(1, (c.width * 0.92) / g.measureText(text).width);
+    g.font = font.replace(/\d+px/, `${Math.floor(fs * scale * (c.height / 256))}px`);
+    g.fillStyle = color; g.fillText(text, c.width / 2, c.height / 2);
+    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide, color: new THREE.Color(2.2, 2.2, 2.2), depthWrite: false, toneMapped: true });
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+    m.position.copy(pos); m.rotation.y = rotY;
+    this.scene.add(m);
+    this.signs.push(m);
+    return m;
+  }
+
+  buildSigns() {
+    const P = this.places;
+    if (P.bugle) {
+      const b = P.bugle;
+      const pos = new THREE.Vector3((b.x0 + b.x1) / 2, b.top + 7, b.z1 - 3);
+      this.sign('DAILY BUGLE', pos, 0, 34, 8, '#f4f1e8');
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(35, 0.6, 0.6), new THREE.MeshStandardMaterial({ color: 0x2a2a2a, metalness: 0.6 }));
+      frame.position.set(pos.x, b.top + 2.6, pos.z); this.scene.add(frame);
+      for (const dx of [-14, -5, 5, 14]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.4, 7, 0.4), frame.material); leg.position.set(pos.x + dx, b.top + 3.5, pos.z); this.scene.add(leg); }
+    }
+    if (P.fisk) this.sign('FISK', new THREE.Vector3(P.fisk.roof.x, 312, P.fisk.z1 + 8.2), 0, 22, 6, '#e9d9a8');
+    if (P.hospital) {
+      const h = P.hospital;
+      this.sign('METRO GENERAL HOSPITAL', new THREE.Vector3((h.x0 + h.x1) / 2, 12, h.z0 + 7.8), Math.PI, 30, 3.6, '#ffffff', 'rgba(170,20,30,0.95)', 'bold 90px Arial, sans-serif');
+      this.sign('+', new THREE.Vector3((h.x0 + h.x1) / 2, h.top + 3.5, h.z0 + 14.2), Math.PI, 6, 6, '#ff2a2a', 'rgba(255,255,255,0.95)', 'bold 240px Arial, sans-serif');
+    }
+  }
+
+  // Add solid geometry after the city is built (Helicarrier, camps...).
+  addBox(b, walkable = true) {
+    b.idx = this.boxes.length;
+    this.boxes.push(b);
+    const C = this.cell;
+    for (let gx = Math.floor(b.x0 / C); gx <= Math.floor(b.x1 / C); gx++)
+      for (let gz = Math.floor(b.z0 / C); gz <= Math.floor(b.z1 / C); gz++) {
+        const key = gx * 100003 + gz;
+        let arr = this.grid.get(key); if (!arr) this.grid.set(key, (arr = [])); arr.push(b);
+        if (walkable) { let t = this.topsGrid.get(key); if (!t) this.topsGrid.set(key, (t = [])); t.push(b.top || (b.top = { x0: b.x0, z0: b.z0, x1: b.x1, z1: b.z1, y: b.y1 })); }
+      }
+    if (this.marks.length < this.boxes.length) { const m = new Uint32Array(this.boxes.length + 64); m.set(this.marks); this.marks = m; }
+    return b;
+  }
+
+  // Wake the symbiote hives (the story spreads the infestation over time).
+  setHives(active, instant = false) {
+    for (const h of this.hives) {
+      h.active = active;
+      if (active) h.group.visible = true;
+      if (instant) { h.gooT = active ? 1 : 0; h.group.visible = active && h.alive; CU.uHives.value[h.id].w = h.gooR * h.gooT; h.group.scale.setScalar(Math.max(0.001, h.gooT)); }
+    }
+  }
+
   buildFarShores() {
     const r = rng(4242);
     const shoreMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1c, roughness: 1 });
@@ -1022,7 +1144,8 @@ export class City {
       }
       this.scene.add(g);
       const hive = {
-        id: k, pos: new THREE.Vector3(c.x, c.y + 2.5, c.z), hp: 450, maxHp: 450, alive: true,
+        id: k, pos: new THREE.Vector3(c.x, c.y + 2.5, c.z), hp: 450, maxHp: 450, alive: true, active: true,
+        get solid() { return this.alive && this.active; },
         group: g, core, gooR: 30 + r() * 8, gooT: 1, roof: c.t,
         box: { x0: c.x - 4.5, z0: c.z - 4.5, x1: c.x + 4.5, z1: c.z + 4.5, y0: c.y, y1: c.y + 6.5, kind: 'hive' },
       };
@@ -1083,7 +1206,7 @@ export class City {
       if (x >= t.x0 && x <= t.x1 && z >= t.z0 && z <= t.z1 && t.y <= y + step && t.y > best) best = t.y;
     }
     for (const h of this.hives) {
-      if (!h.alive) continue;
+      if (!h.solid) continue;
       const b = h.box;
       if (x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1 && b.y1 <= y + step && b.y1 > best) best = b.y1;
     }
@@ -1116,7 +1239,7 @@ export class City {
       if (arr) for (const b of arr) {
         if (this.marks[b.idx] === st) continue;
         this.marks[b.idx] = st;
-        if (b.kind === 'hive' && !b.hive.alive) continue;
+        if (b.kind === 'hive' && !b.hive.solid) continue;
         const hit = rayBox(o, d, b);
         if (hit && hit.t < best) { best = hit.t; bestBox = b; bn = hit.n; }
       }
@@ -1154,7 +1277,7 @@ export class City {
         for (const b of arr) {
           if (this.marks[b.idx] === st) continue;
           this.marks[b.idx] = st;
-          if (b.kind === 'hive' && !b.hive.alive) continue;
+          if (b.kind === 'hive' && !b.hive.solid) continue;
           const cx = clamp(p.x, b.x0, b.x1), cy = clamp(p.y, b.y0, b.y1), cz = clamp(p.z, b.z0, b.z1);
           let dx = p.x - cx, dy = p.y - cy, dz = p.z - cz;
           let d2 = dx * dx + dy * dy + dz * dz;
@@ -1190,7 +1313,7 @@ export class City {
     const arr = this.cellBoxes(Math.floor(p.x / this.cell), Math.floor(p.z / this.cell));
     if (!arr) return null;
     for (const b of arr) {
-      if (b.kind === 'hive' && !b.hive.alive) continue;
+      if (b.kind === 'hive' && !b.hive.solid) continue;
       if (p.x > b.x0 + r && p.x < b.x1 - r && p.z > b.z0 + r && p.z < b.z1 - r && p.y > b.y0 + r && p.y < b.y1 - r) return b;
     }
     return null;
@@ -1202,7 +1325,7 @@ export class City {
     const arr = this.cellBoxes(Math.floor(q.x / this.cell), Math.floor(q.z / this.cell));
     if (!arr) return null;
     for (const b of arr) {
-      if (b.kind === 'hive' && !b.hive.alive) continue;
+      if (b.kind === 'hive' && !b.hive.solid) continue;
       if (q.x >= b.x0 - 0.05 && q.x <= b.x1 + 0.05 && q.z >= b.z0 - 0.05 && q.z <= b.z1 + 0.05 && p.y >= b.y0 - 0.5 && p.y <= b.y1 + 0.2) return b;
     }
     return null;
@@ -1214,7 +1337,15 @@ export class City {
     if (this.aviationMat) this.aviationMat.color.setRGB(Math.sin(t * 2.2) > 0.2 ? 7 : 0.4, 0.25, 0.15);
     for (const h of this.hives) {
       const u = CU.uHives.value[h.id];
-      if (!h.alive) {
+      if (h.alive && !h.active) {
+        h.gooT = Math.max(0, h.gooT - dt * 0.5);
+        u.w = h.gooR * h.gooT; h.group.scale.setScalar(Math.max(0.001, h.gooT));
+        if (h.gooT <= 0) h.group.visible = false;
+      } else if (h.alive && h.active && h.gooT < 1) {
+        h.group.visible = true;
+        h.gooT = Math.min(1, h.gooT + dt * 0.15);
+        u.w = h.gooR * h.gooT; h.group.scale.setScalar(Math.max(0.001, h.gooT));
+      } else if (!h.alive) {
         h.gooT = Math.max(0, h.gooT - dt * 0.25);
         u.w = h.gooR * h.gooT;
         h.group.scale.setScalar(Math.max(0.001, h.gooT));

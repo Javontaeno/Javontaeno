@@ -1,5 +1,4 @@
 // Button prompts for keyboard/mouse, Xbox, PlayStation and Switch controllers.
-import { SETTINGS } from './settings.js';
 
 export const KB = {
   move: 'W A S D', camera: 'Mouse', swing: 'Shift', jump: 'Space', attack: 'LMB', web: 'RMB', zip: 'E', dash: 'Q',
@@ -32,7 +31,7 @@ export function glyph(action, device) {
 
 // Text shown in the controls panel and title screen.
 export function controlRows() {
-  const sense = SETTINGS.arach ? 'danger sense' : 'spider-sense';
+  const sense = 'spider-sense';
   return [
     ['move', 'Move'], ['camera', 'Camera'],
     ['swing', 'Hold: web-swing / sprint'], ['jump', 'Jump · hold = super jump'],

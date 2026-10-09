@@ -162,7 +162,7 @@ export class Player {
     if (best && best.pos.distanceTo(this.pos) < 40) { a.enemy = best; a.valid = true; a.kind = 'enemy'; a.point.copy(best.chest(_v)); return; }
     const hit = g.city.raycast(o, d, 160, _hit);
     if (!hit) return;
-    if (hit.box && hit.box.kind === 'hive' && hit.box.hive.alive && hit.t < 60) {
+    if (hit.box && hit.box.kind === 'hive' && hit.box.hive.solid && hit.t < 60) {
       a.enemy = g.hiveTarget(hit.box.hive); a.valid = true; a.kind = 'enemy'; a.point.copy(hit.point); return;
     }
     if (hit.point.distanceTo(this.pos) < 4) return;
@@ -735,7 +735,7 @@ export class Player {
     }
     if (!best) {
       for (const h of g.city.hives) {
-        if (!h.alive) continue;
+        if (!h.solid) continue;
         const d = h.pos.distanceTo(this.pos) - 4;
         if (d < range && d < bs) { bs = d; best = g.hiveTarget(h); }
       }

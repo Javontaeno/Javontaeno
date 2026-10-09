@@ -144,7 +144,7 @@ class Line {
 const LINE_GEO = new THREE.CylinderGeometry(1, 1, 1, 6, 1, true).translate(0, 0.5, 0);
 
 // Tendrils bend along a cubic Bézier evaluated in the vertex shader.
-function tendrilMaterial() {
+export function tendrilMaterial() {
   const m = new THREE.MeshPhysicalMaterial({ color: 0x050407, roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.08, sheen: 1, sheenColor: new THREE.Color(0.35, 0.1, 0.6) });
   m.userData.u = {
     uP0: { value: new THREE.Vector3() }, uP1: { value: new THREE.Vector3() }, uP2: { value: new THREE.Vector3() }, uP3: { value: new THREE.Vector3() },
@@ -173,7 +173,7 @@ function tendrilMaterial() {
   };
   return m;
 }
-const TENDRIL_GEO = new THREE.CylinderGeometry(1, 1, 1, 8, 32, true).rotateX(Math.PI / 2).translate(0, 0, 0.5);
+export const TENDRIL_GEO = new THREE.CylinderGeometry(1, 1, 1, 8, 32, true).rotateX(Math.PI / 2).translate(0, 0, 0.5);
 
 class Tendril {
   constructor(scene) {
@@ -268,6 +268,59 @@ export class FX {
     scene.add(this.embers);
     this.time = 0;
     this.black = false;
+    // lightning, coloured lines and ground telegraphs for boss attacks
+    this.boltMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 4.6, 1.6), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+    this.boltSegs = Array.from({ length: 90 }, () => new Line(scene, this.boltMat));
+    this.lineMats = {};
+    this.colorLines = Array.from({ length: 24 }, () => new Line(scene, this.webMat));
+    this.teles = Array.from({ length: 10 }, () => {
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.93, 1, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 0.3, 0.2), transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+      const disc = new THREE.Mesh(new THREE.CircleGeometry(1, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: new THREE.Color(2, 0.2, 0.15), transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+      ring.visible = disc.visible = false; ring.renderOrder = disc.renderOrder = 4;
+      scene.add(ring, disc);
+      return { ring, disc, life: 0, max: 1 };
+    });
+  }
+
+  // Jagged electric arc from a to b.
+  lightning(a, b, life = 0.12, jag = 0.6) {
+    const n = 8;
+    const pts = [a.clone()];
+    const d = _v.copy(b).sub(a);
+    const len = d.length();
+    for (let i = 1; i < n; i++) {
+      const p = a.clone().addScaledVector(d, i / n);
+      p.x += (Math.random() - 0.5) * jag * len * 0.12; p.y += (Math.random() - 0.5) * jag * len * 0.12; p.z += (Math.random() - 0.5) * jag * len * 0.12;
+      pts.push(p);
+    }
+    pts.push(b.clone());
+    for (let i = 0; i < n; i++) {
+      const seg = this.boltSegs.find((x) => x.life <= 0) || this.boltSegs[0];
+      seg.set(pts[i], pts[i + 1], 0.045);
+      seg.life = life;
+    }
+    this.add.emit(b, 6, { speed: 6, color: [4, 3.6, 1.2], life: 0.25, size: 0.12, gravity: 4 });
+  }
+
+  line(a, b, color = 0x111111, life = 0.15, r = 0.02) {
+    let m = this.lineMats[color];
+    if (!m) m = this.lineMats[color] = new THREE.MeshStandardMaterial({ color, roughness: 0.4 });
+    const l = this.colorLines.find((x) => x.life <= 0) || this.colorLines[0];
+    l.mesh.material = m;
+    l.set(a, b, r);
+    l.life = life;
+  }
+
+  // Red ground circle that fills up until an attack lands.
+  telegraph(p, radius, dur) {
+    const t = this.teles.find((x) => x.life <= 0) || this.teles[0];
+    t.ring.position.copy(p); t.disc.position.copy(p);
+    t.ring.position.y += 0.06; t.disc.position.y += 0.05;
+    t.ring.scale.setScalar(radius);
+    t.disc.scale.setScalar(0.01);
+    t.r = radius; t.life = t.max = dur;
+    t.ring.visible = t.disc.visible = true;
+    return t;
   }
 
   setSuit(black) {
@@ -341,7 +394,15 @@ export class FX {
     this.time += dt;
     this.add.update(dt);
     this.dark.update(dt);
-    for (const l of [...this.lines, ...this.tracers, ...this.lasers]) {
+    for (const t of this.teles) {
+      if (t.life <= 0) continue;
+      t.life -= dt;
+      const k = 1 - t.life / t.max;
+      t.disc.scale.setScalar(Math.max(0.01, k * t.r));
+      t.ring.material.opacity = 0.6 + 0.4 * Math.sin(this.time * 30);
+      if (t.life <= 0) t.ring.visible = t.disc.visible = false;
+    }
+    for (const l of [...this.lines, ...this.tracers, ...this.lasers, ...this.boltSegs, ...this.colorLines]) {
       if (l.life > 0) { l.life -= dt; if (l.life <= 0) l.mesh.visible = false; }
     }
     for (const t of this.tendrils) t.update(dt, this.time);

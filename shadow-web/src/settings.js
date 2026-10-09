@@ -1,6 +1,6 @@
-// Player options, persisted per browser. Arachnophobia mode is on by default.
+// Player options, persisted per browser.
 const KEY = 'shadowweb-settings';
-const DEFAULTS = { arach: true, invertY: false, sens: 1, vibration: true };
+const DEFAULTS = { invertY: false, sens: 1, vibration: true };
 
 export const SETTINGS = { ...DEFAULTS };
 try { Object.assign(SETTINGS, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { /* storage blocked */ }

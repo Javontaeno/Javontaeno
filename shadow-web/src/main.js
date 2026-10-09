@@ -8,7 +8,8 @@ import { CameraRig } from './camera.js';
 import { Player } from './player.js';
 import { Enemy, Encounters } from './enemies.js';
 import { HUD } from './hud.js';
-import { SYM_U, repaintHero } from './character.js';
+import { Actor, CAST } from './cast.js';
+import { SYM_U } from './character.js';
 import { clamp } from './util.js';
 import { SETTINGS, saveSettings } from './settings.js';
 import { glyph, DEVICE_NAMES } from './controls.js';
@@ -53,7 +54,7 @@ class MenuNav {
   }
 }
 
-const SETTING_LABELS = { arach: 'ARACHNOPHOBIA MODE', vibration: 'VIBRATION', invertY: 'INVERT CAMERA Y' };
+const SETTING_LABELS = { vibration: 'VIBRATION', invertY: 'INVERT CAMERA Y' };
 
 function storedQuality() {
   const q = params.get('q');
@@ -109,6 +110,7 @@ class Game {
     window.__game = this;
     window.__THREE = THREE;
     window.__Enemy = Enemy;
+    window.__Actor = Actor; window.__CAST = CAST;
   }
 
   placePlayer() {
@@ -189,7 +191,7 @@ class Game {
       const game = this;
       h.target = {
         isHive: true, hive: h, pos: h.pos, radius: 4.5, heavy: true, canLaunch: false, airborne: false, threatT: -1, webLevel: 0,
-        get alive() { return h.alive; }, get targetable() { return h.alive; },
+        get alive() { return h.solid; }, get targetable() { return h.solid; },
         get hp() { return h.hp; }, get maxHp() { return h.maxHp; },
         chest: (o = new THREE.Vector3()) => o.copy(h.pos).setY(h.pos.y + 0.5),
         takeHit: (spec) => game.damageHive(h, spec.dmg),
@@ -200,7 +202,7 @@ class Game {
   }
 
   damageHive(h, dmg) {
-    if (!h.alive) return false;
+    if (!h.solid) return false;
     const ev = this.encounters.events.find((e) => e.hive === h);
     const guards = ev ? ev.enemies.filter((e) => e.alive && e.pos.distanceTo(h.pos) < 26 && Math.abs(e.pos.y - h.roof.y1) < 4).length : 0;
     const k = guards > 0 ? 0.45 : 1;
@@ -224,7 +226,7 @@ class Game {
       this.addXp(500);
       this.hud.flashText('HIVE DESTROYED', '#ff4d6a');
       this.toast(left ? `<b>HIVE DESTROYED</b> &mdash; ${left} remaining` : '<b>ALL HIVES DESTROYED</b>', 4);
-      if (!left) setTimeout(() => this.win(), 2200);
+      if (!left && !(this.story && this.story.campaign)) setTimeout(() => this.win(), 2200);
     }
     return true;
   }
@@ -256,7 +258,6 @@ class Game {
   toggleSetting(key) {
     SETTINGS[key] = !SETTINGS[key];
     saveSettings();
-    if (key === 'arach') { repaintHero(this.player.char); this.hud.refreshPrompts(this.input.device); }
     if (key === 'vibration' && SETTINGS.vibration) this.rumble(0.5, 0.5, 200);
     this.refreshSettingLabels();
     this.audio.ui();
