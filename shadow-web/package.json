@@ -1,0 +1,15 @@
+{
+  "name": "shadow-web",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Web of Shadows-inspired open-world web-swinging action game, bundled into a single HTML file.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --dev"
+  },
+  "devDependencies": {
+    "esbuild": "0.24.0",
+    "three": "0.169.0"
+  }
+}

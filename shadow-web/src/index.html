@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shadow Web</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Barlow+Condensed:wght@500;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<style>
+  :root { --red: #e0202c; --red2: #ff5560; --blue: #2c4bb3; --ink: #07070b; --sym: #b99cff; --ui: rgba(10,12,20,.62); }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #05060a; color: #f3f4f8; font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif; user-select: none; }
+  canvas#c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; outline: none; }
+  .title-font { font-family: 'Bangers', Impact, 'Arial Black', sans-serif; letter-spacing: .04em; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity .6s; }
+  #hud.on { opacity: 1; }
+  #vitals { position: absolute; left: 24px; top: 22px; width: min(340px, 60vw); }
+  #vitals .row { display: flex; align-items: center; gap: 10px; }
+  #suitBadge { font-weight: 800; font-size: 13px; letter-spacing: .14em; padding: 3px 8px; border-radius: 3px; background: linear-gradient(90deg, var(--red), #8d0e16); box-shadow: 0 0 12px rgba(224,32,44,.5); }
+  #suitBadge.black { background: linear-gradient(90deg, #17151f, #000); color: var(--sym); box-shadow: 0 0 14px rgba(150,110,255,.5); border: 1px solid #3a2f5a; }
+  #lvl { font-weight: 800; font-size: 15px; opacity: .9; }
+  .xpbar { flex: 1; height: 4px; background: rgba(255,255,255,.12); border-radius: 2px; overflow: hidden; }
+  #xpFill { height: 100%; width: 0; background: linear-gradient(90deg, #6ad0ff, #fff); }
+  .hpbar { position: relative; height: 14px; margin-top: 8px; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.25); transform: skewX(-18deg); overflow: hidden; }
+  #hpLag { position: absolute; inset: 0 auto 0 0; background: #fff3; }
+  #hpFill { position: absolute; inset: 0 auto 0 0; background: linear-gradient(180deg, #ff5a63, #b3121b); box-shadow: 0 0 10px rgba(255,60,70,.6); transition: width .08s; }
+  .focus { display: flex; gap: 6px; margin-top: 6px; }
+  .fseg { flex: 1; height: 7px; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.2); transform: skewX(-18deg); overflow: hidden; }
+  .fseg i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ffe08a, #fff6d8); }
+  .fseg.full { border-color: #ffe08a; box-shadow: 0 0 10px rgba(255,220,120,.7); }
+  .fseg.full i { background: linear-gradient(90deg, #fff1b0, #fff); }
+  #timeLabel { font-size: 12px; letter-spacing: .2em; opacity: .55; text-transform: uppercase; margin-top: 6px; }
+
+  #objective { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); text-align: center; font-size: 15px; letter-spacing: .12em; text-shadow: 0 2px 8px #000; min-width: 260px; }
+  #objective b { font-weight: 800; color: #ff7b8a; }
+  #objective .pct { font-weight: 800; font-size: 18px; }
+  #objective .ibar { width: 240px; height: 4px; margin: 5px auto 0; background: rgba(255,255,255,.15); }
+  #objective .ibar i { display: block; height: 100%; background: linear-gradient(90deg, #6a0c22, #ff2a4a); box-shadow: 0 0 8px #ff2a4a; }
+  #objective .sub { font-size: 14px; margin-top: 6px; color: #ffd36a; letter-spacing: .1em; }
+
+  #minimap { position: absolute; right: 22px; top: 18px; width: 190px; height: 190px; border-radius: 50%; box-shadow: 0 6px 24px rgba(0,0,0,.6); }
+
+  #combo { position: absolute; right: 40px; top: 46%; text-align: right; opacity: 0; transition: opacity .2s; }
+  #comboN { font-family: 'Bangers', Impact, sans-serif; font-size: 64px; line-height: .9; color: #fff; text-shadow: 3px 3px 0 var(--red), 6px 6px 0 #000; display: inline-block; }
+  #comboN.pop { animation: pop .18s ease-out; }
+  #combo .x { font-family: 'Bangers', Impact, sans-serif; font-size: 22px; color: #ffd36a; margin-right: 4px; }
+  #comboW { font-family: 'Bangers', Impact, sans-serif; font-size: 26px; color: #ffd36a; text-shadow: 2px 2px 0 #000; }
+  @keyframes pop { 0% { transform: scale(1.5) rotate(-6deg); } 100% { transform: scale(1) rotate(0); } }
+
+  #flashText { position: absolute; left: 50%; top: 30%; transform: translateX(-50%); font-family: 'Bangers', Impact, sans-serif; font-size: 44px; letter-spacing: .06em; text-shadow: 3px 3px 0 #000; opacity: 0; white-space: nowrap; }
+  #flashText.pop { animation: pop .25s ease-out; }
+  #toast { position: absolute; left: 50%; top: 13%; transform: translateX(-50%); background: var(--ui); padding: 10px 22px; border-left: 4px solid var(--red); font-size: 20px; letter-spacing: .08em; opacity: 0; transition: opacity .3s; white-space: nowrap; backdrop-filter: blur(4px); }
+  #toast b { color: #ffd36a; }
+
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: rgba(255,255,255,.8); box-shadow: 0 0 4px #000; }
+  #reticle { position: absolute; left: 0; top: 0; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.85); display: none; box-shadow: 0 0 8px rgba(0,0,0,.6); }
+  #reticle.perch { border-color: #7fe0ff; width: 22px; height: 22px; box-shadow: 0 0 10px #7fe0ff; }
+  #reticle.ground { border-color: rgba(255,255,255,.5); width: 14px; height: 14px; }
+  #lock { position: absolute; left: 0; top: 0; width: 64px; height: 64px; display: none; }
+  #lock:before, #lock:after { content: ''; position: absolute; width: 18px; height: 18px; border: 3px solid #ff3b47; filter: drop-shadow(0 0 4px #ff3b47); }
+  #lock:before { left: 0; top: 0; border-right: 0; border-bottom: 0; }
+  #lock:after { right: 0; bottom: 0; border-left: 0; border-top: 0; }
+  .ebar { position: absolute; left: 0; top: 0; width: 54px; height: 9px; display: none; }
+  .ebar i { position: absolute; left: 0; top: 0; height: 5px; background: #ff3b47; box-shadow: 0 0 4px #000; }
+  .ebar s { position: absolute; left: 0; top: 6px; height: 3px; background: #e8f0ff; }
+  .ebar:before { content: ''; position: absolute; left: 0; top: 0; width: 54px; height: 5px; background: rgba(0,0,0,.6); }
+  .ebar.heavy { width: 90px; } .ebar.heavy:before { width: 90px; }
+  .ebar.threat i { background: #ffb02e; box-shadow: 0 0 8px #ffb02e; }
+  .marker { position: absolute; left: 0; top: 0; display: none; text-align: center; }
+  .marker .dia { display: block; width: 16px; height: 16px; margin: 0 auto 2px; transform: rotate(45deg); border: 2px solid #000; background: #ffc23d; box-shadow: 0 0 10px #ffc23d; }
+  .marker.outbreak .dia { background: #b06bff; box-shadow: 0 0 10px #b06bff; }
+  .marker.hive .dia { background: #ff2a4a; box-shadow: 0 0 12px #ff2a4a; width: 20px; height: 20px; }
+  .marker .lbl { font-weight: 800; font-size: 14px; text-shadow: 0 1px 4px #000; }
+  .marker.edge { opacity: .8; }
+  #senseIcon { position: absolute; left: 50%; top: 50%; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; box-shadow: 0 0 0 3px rgba(255,140,40,.6) inset, 0 0 40px rgba(255,120,30,.6); opacity: 0; }
+
+  #help { position: absolute; left: 22px; bottom: 22px; background: var(--ui); padding: 12px 16px; font-size: 15px; line-height: 1.45; letter-spacing: .04em; border-left: 3px solid var(--red); backdrop-filter: blur(4px); transition: opacity .4s; max-width: 520px; }
+  #help.hidden { opacity: 0; }
+  #help h4 { margin: 0 0 4px; font-family: 'Bangers', Impact, sans-serif; font-size: 20px; letter-spacing: .08em; font-weight: 400; color: var(--red2); }
+  #help .cols { display: grid; grid-template-columns: auto auto; gap: 0 22px; }
+  kbd { display: inline-block; min-width: 20px; padding: 0 5px; border: 1px solid rgba(255,255,255,.4); border-bottom-width: 2px; border-radius: 3px; font-family: inherit; font-weight: 700; font-size: 13px; text-align: center; background: rgba(255,255,255,.08); margin-right: 4px; }
+
+  #dead, #victory { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; background: radial-gradient(circle, rgba(60,0,8,.45), rgba(0,0,0,.85)); opacity: 0; pointer-events: none; transition: opacity .6s; }
+  #dead.show, #victory.show { opacity: 1; }
+  #victory { background: radial-gradient(circle, rgba(10,20,60,.4), rgba(0,0,0,.85)); }
+  #victory.show { pointer-events: auto; }
+  #dead h2, #victory h2 { font-family: 'Bangers', Impact, sans-serif; font-size: 72px; margin: 0; letter-spacing: .05em; text-shadow: 4px 4px 0 #000; font-weight: 400; }
+  #victory h2 { color: #fff; text-shadow: 4px 4px 0 var(--red), 8px 8px 0 #000; }
+
+  /* ---------- menus ---------- */
+  .screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 10; }
+  #title { background: radial-gradient(ellipse at 70% 40%, rgba(120,10,25,.35), transparent 60%), linear-gradient(180deg, rgba(3,4,10,.55), rgba(3,4,10,.92)); flex-direction: column; text-align: center; padding: 16px; }
+  #title h1 { margin: 0; font-family: 'Bangers', Impact, sans-serif; font-weight: 400; font-size: clamp(56px, 12vw, 150px); line-height: .9; letter-spacing: .03em; color: #fff; text-shadow: 5px 5px 0 var(--red), 10px 10px 0 #000; }
+  #title h1 span { color: #0a0a0f; -webkit-text-stroke: 2px #d8d0ff; text-shadow: 5px 5px 0 #5a3fa8, 10px 10px 0 #000; }
+  #title .tag { font-size: clamp(16px, 2.4vw, 22px); letter-spacing: .32em; text-transform: uppercase; opacity: .85; margin: 18px 0 30px; }
+  .btn { pointer-events: auto; cursor: pointer; font-family: 'Bangers', Impact, sans-serif; font-size: 34px; letter-spacing: .08em; padding: 10px 48px; color: #fff; background: linear-gradient(180deg, #ff2f3c, #a80f19); border: 0; clip-path: polygon(8% 0, 100% 0, 92% 100%, 0 100%); box-shadow: 0 8px 30px rgba(255,40,50,.4); transition: transform .12s, filter .12s; }
+  .btn:hover { transform: scale(1.05); filter: brightness(1.15); }
+  .btn.ghost { background: rgba(255,255,255,.08); font-size: 22px; padding: 8px 30px; box-shadow: none; }
+  #title .opts { margin-top: 22px; display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; font-size: 16px; letter-spacing: .12em; }
+  #title .opts button { pointer-events: auto; cursor: pointer; background: rgba(255,255,255,.07); color: #ddd; border: 1px solid rgba(255,255,255,.25); padding: 6px 14px; font-family: inherit; font-size: 15px; letter-spacing: .1em; font-weight: 700; }
+  #title .opts button.on { background: #fff; color: #000; }
+  #title .controls { margin-top: 26px; display: grid; grid-template-columns: repeat(3, auto); gap: 6px 26px; font-size: 15px; text-align: left; opacity: .9; }
+  #title .note { margin-top: 18px; font-size: 13px; opacity: .5; letter-spacing: .1em; max-width: 640px; }
+  #loading { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; flex-direction: column; background: #05060a; font-size: 18px; letter-spacing: .3em; text-transform: uppercase; }
+  #loading .bar { width: 240px; height: 3px; background: #222; margin-top: 14px; overflow: hidden; }
+  #loading .bar i { display: block; height: 100%; width: 30%; background: var(--red); animation: load 1s infinite ease-in-out; }
+  @keyframes load { 0% { transform: translateX(-100%); } 100% { transform: translateX(340%); } }
+  #pause { display: none; background: rgba(3,4,10,.7); flex-direction: column; gap: 14px; backdrop-filter: blur(6px); }
+  #pause.show { display: flex; }
+  #pause h2 { font-family: 'Bangers', Impact, sans-serif; font-size: 64px; margin: 0 0 10px; font-weight: 400; letter-spacing: .06em; }
+  .hidden { display: none !important; }
+  @media (max-width: 720px) {
+    #minimap { width: 120px; height: 120px; }
+    #help, #title .controls { display: none; }
+    #comboN { font-size: 44px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c" tabindex="0"></canvas>
+
+<div id="loading"><div>Building the city</div><div class="bar"><i></i></div></div>
+
+<div id="hud">
+  <div id="vitals">
+    <div class="row"><span id="suitBadge">CLASSIC</span><span id="lvl">LV 1</span><div class="xpbar"><div id="xpFill"></div></div></div>
+    <div class="hpbar"><div id="hpLag"></div><div id="hpFill"></div></div>
+    <div class="focus"><div class="fseg"><i></i></div><div class="fseg"><i></i></div><div class="fseg"><i></i></div></div>
+    <div id="timeLabel">Dusk</div>
+  </div>
+  <div id="objective"></div>
+  <canvas id="minimap" width="190" height="190"></canvas>
+  <div id="crosshair"></div>
+  <div id="reticle"></div>
+  <div id="lock"></div>
+  <div id="bars"></div>
+  <div id="markers"></div>
+  <div id="senseIcon"></div>
+  <div id="combo"><span class="x">x</span><span id="comboN">0</span><div id="comboW"></div></div>
+  <div id="flashText"></div>
+  <div id="toast"></div>
+  <div id="help">
+    <h4>CONTROLS</h4>
+    <div class="cols">
+      <div><kbd>W A S D</kbd> move &nbsp;<kbd>Mouse</kbd> camera</div><div><kbd>LMB</kbd> strike &middot; hold = launcher</div>
+      <div><kbd>Shift</kbd> hold to web-swing / sprint</div><div><kbd>RMB</kbd> web shot &middot; hold = yank</div>
+      <div><kbd>Space</kbd> jump (hold = super jump)</div><div><kbd>C</kbd> dodge (on spider-sense = perfect)</div>
+      <div><kbd>E</kbd> web-zip to point / web strike</div><div><kbd>F</kbd> finisher &nbsp;<kbd>H</kbd> heal (focus)</div>
+      <div><kbd>Q</kbd> air web-zip dash</div><div><kbd>R</kbd> switch suit &nbsp;<kbd>G</kbd> web bomb / surge</div>
+      <div><kbd>T</kbd> time of day &nbsp;<kbd>M</kbd> mute</div><div><kbd>I</kbd> toggle this panel &nbsp;<kbd>Esc</kbd> pause</div>
+    </div>
+  </div>
+</div>
+
+<div id="dead"><h2>DOWN BUT NOT OUT</h2><div style="letter-spacing:.3em;opacity:.8">RESPAWNING&hellip;</div></div>
+<div id="victory"><h2>THE CITY IS SAVED</h2><div id="victoryStats" style="letter-spacing:.15em;opacity:.9;margin:14px 0 24px;font-size:20px"></div><button class="btn ghost" id="victoryBtn">KEEP SWINGING</button></div>
+
+<div id="title" class="screen hidden">
+  <h1 class="title-font">SHADOW <span>WEB</span></h1>
+  <div class="tag">The symbiote invasion has begun. Take back the city.</div>
+  <button class="btn" id="playBtn">PLAY</button>
+  <div class="opts"><span>QUALITY</span><button data-q="0">LOW</button><button data-q="1">MEDIUM</button><button data-q="2">HIGH</button></div>
+  <div class="controls">
+    <div><kbd>Shift</kbd> web-swing</div><div><kbd>LMB</kbd> strike / combo</div><div><kbd>R</kbd> symbiote suit</div>
+    <div><kbd>Space</kbd> jump / launch</div><div><kbd>RMB</kbd> web shot / yank</div><div><kbd>C</kbd> dodge</div>
+    <div><kbd>E</kbd> zip to point</div><div><kbd>Q</kbd> air dash</div><div><kbd>F</kbd> finisher</div>
+  </div>
+  <div class="note">Gamepad supported. Destroy the six symbiote hives to end the invasion &mdash; stop street crimes and outbreaks along the way to level up.</div>
+</div>
+
+<div id="pause" class="screen"><h2>PAUSED</h2><button class="btn" id="resumeBtn">RESUME</button><button class="btn ghost" id="timeBtn">TIME OF DAY</button><button class="btn ghost" id="muteBtn">SOUND: ON</button></div>
+
+<!--BUNDLE-->
+</body>
+</html>
