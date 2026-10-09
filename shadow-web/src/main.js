@@ -71,13 +71,16 @@ class Game {
       if (!best || d < best.d) best = { t, d };
     }
     const t = best ? best.t : { x0: -5, x1: 5, z0: -5, z1: 5, y: 60 };
-    const p = new THREE.Vector3((t.x0 + t.x1) / 2, t.y + 1.0, t.z0 + 0.2);
+    this.city.hideParapet(t);
+    const p = new THREE.Vector3((t.x0 + t.x1) / 2, t.y, t.z0 + 0.25);
     this.player.pos.copy(p);
     this.player.state = 'perch';
     this.player.perchDir.set(0, 0, -1);
     this.player.yaw = this.player.yawVis = Math.PI;
     this.cam.yaw = Math.PI;
-    this.cam.pitch = 0.32;
+    this.cam.pitch = 0.2;
+    this.cam.cine = 0.85;
+    this.introCine = true;
     this.cam.focus.copy(p).setY(p.y + 1.2);
   }
 
@@ -146,8 +149,8 @@ class Game {
   damageHive(h, dmg) {
     if (!h.alive) return false;
     const ev = this.encounters.events.find((e) => e.hive === h);
-    const guards = ev ? ev.enemies.filter((e) => e.alive).length : 0;
-    const k = guards > 0 ? 0.25 : 1;
+    const guards = ev ? ev.enemies.filter((e) => e.alive && e.pos.distanceTo(h.pos) < 26 && Math.abs(e.pos.y - h.roof.y1) < 4).length : 0;
+    const k = guards > 0 ? 0.45 : 1;
     h.hp -= Math.min(dmg, 200) * k;
     this.fx.dark.emit(h.pos, 20, { speed: 7, up: 3, color: [0.02, 0.0, 0.03], life: 0.8, size: 0.25 });
     this.audio.hive();
@@ -239,6 +242,7 @@ class Game {
 
     const pl = this.player;
     pl.update(dt);
+    if (this.introCine && pl.state !== 'perch') { this.introCine = false; this.cam.cine = 0; }
     for (const e of [...this.enemies]) e.update(dt);
     // combat awareness & spider-sense
     let inCombat = false, threat = false;

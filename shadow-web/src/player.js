@@ -56,7 +56,7 @@ export class Player {
     this.zip = { from: new THREE.Vector3(), to: new THREE.Vector3(), point: new THREE.Vector3(), t: 0, dur: 0, kind: '', n: new THREE.Vector3(), box: null };
     this.perchDir = new THREE.Vector3(0, 0, 1);
     this.airDashes = 0; this.dashCd = 0; this.dashT = 0; this.swingCd = 0; this.wallCd = 0; this.bombCd = 0; this.wallPush = 0;
-    this.runPhase = 0; this.landT = 0; this.landK = 0;
+    this.runPhase = 0; this.landT = 0; this.landK = 0; this.airAttacks = 0;
     this.flipT = 0; this.flipName = 'flip';
     this.charge = 0; this.charging = false;
     this.aim = { valid: false, point: new THREE.Vector3(), normal: new THREE.Vector3(), box: null, kind: '', enemy: null };
@@ -162,6 +162,9 @@ export class Player {
     if (best && best.pos.distanceTo(this.pos) < 40) { a.enemy = best; a.valid = true; a.kind = 'enemy'; a.point.copy(best.chest(_v)); return; }
     const hit = g.city.raycast(o, d, 160, _hit);
     if (!hit) return;
+    if (hit.box && hit.box.kind === 'hive' && hit.box.hive.alive && hit.t < 60) {
+      a.enemy = g.hiveTarget(hit.box.hive); a.valid = true; a.kind = 'enemy'; a.point.copy(hit.point); return;
+    }
     if (hit.point.distanceTo(this.pos) < 4) return;
     a.point.copy(hit.point); a.normal.copy(hit.normal); a.box = hit.box;
     if (hit.box && Math.abs(hit.normal.y) < 0.5) {
@@ -319,6 +322,7 @@ export class Player {
     this.state = 'ground'; this.stateT = 0;
     this.vel.y = 0;
     this.airDashes = 0;
+    this.airAttacks = 0;
     if (this.act && this.act.air) this.endAction();
     if (vy < -30) {
       this.landT = 0.6; this.landK = 1;
@@ -399,7 +403,7 @@ export class Player {
     s.len = Math.max(s.len, s.min);
     s.t = 0;
     this.state = 'swing'; this.stateT = 0;
-    this.airDashes = 0;
+    this.airDashes = 0; this.airAttacks = 0;
     this.act = null;
     g.audio.thwip(this.black);
     g.fx.hitSpark(s.attach, false, this.black);
@@ -736,7 +740,10 @@ export class Player {
     const dur = (DUR[name] || 0.4) * (this.black && HIT[name] ? 1.12 : 1);
     const air = this.state === 'air';
     const prevZip = this.act && this.act.zip;
-    this.act = { name, t: 0, dur, hit: ACT[name]?.hit ?? 0.5, target, done: false, air: air && name !== 'slam', chainIndex: o.chainIndex ?? -1, lunge: null, ...o };
+    // hang time only while juggling someone who's actually airborne, and it runs out
+    const juggle = air && name !== 'slam' && target && target.airborne && this.airAttacks < 6;
+    if (air) this.airAttacks++;
+    this.act = { name, t: 0, dur, hit: ACT[name]?.hit ?? 0.5, target, done: false, air: !!juggle, chainIndex: o.chainIndex ?? -1, lunge: null, ...o };
     this.queued = false;
     this.target = target && target.isHive ? null : target;
     if (target) {

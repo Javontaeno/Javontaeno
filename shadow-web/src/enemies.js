@@ -643,9 +643,9 @@ export class Encounters {
     const list = ev.comp;
     for (let k = 0; k < list.length; k++) {
       let p = null;
-      for (let a = 0; a < 25; a++) {
-        const ang = (k / list.length) * Math.PI * 2 + Math.random() * 0.8;
-        const rr = (ev.type === 'hive' ? 8 : 3) + Math.random() * 5;
+      for (let a = 0; a < 40; a++) {
+        const ang = (k / list.length) * Math.PI * 2 + Math.random() * 0.8 + a * 0.7;
+        const rr = (ev.type === 'hive' ? 6.5 + Math.random() * 4 : 3 + Math.random() * 5) * (a > 20 ? 0.8 : 1);
         const x = ev.pos.x + Math.cos(ang) * rr, z = ev.pos.z + Math.sin(ang) * rr;
         const gy = city.groundAt(x, z, ev.pos.y + 1);
         if (Math.abs(gy - ev.pos.y) > 0.5) continue;
@@ -654,7 +654,10 @@ export class Encounters {
         p = new THREE.Vector3(x, gy, z);
         break;
       }
-      if (!p) p = ev.pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 2, 0, (Math.random() - 0.5) * 2));
+      if (!p) {
+        if (ev.type === 'hive') continue; // no room on this roof; skip rather than spawn inside the hive
+        p = ev.pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 2, 0, (Math.random() - 0.5) * 2));
+      }
       const e = new Enemy(g, list[k], p, ev);
       ev.enemies.push(e);
       g.enemies.push(e);
@@ -681,8 +684,9 @@ export class Encounters {
       if (ev.type === 'hive') {
         if (!ev.hive.alive) { ev.cleared = true; continue; }
         ev.reinf -= dt;
-        if (ev.reinf <= 0 && d < 90 && alive < 3) {
-          ev.reinf = 11;
+        if (ev.reinf <= 0 && d < 90 && alive < 2 && (ev.waves = (ev.waves || 0)) < 4) {
+          ev.reinf = 16;
+          ev.waves++;
           ev.comp = ['crawler', 'crawler'];
           const before = ev.enemies;
           this.spawn(ev);

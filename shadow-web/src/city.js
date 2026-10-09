@@ -185,7 +185,9 @@ function makeBuildingMaterial() {
           vec4 hv = uHives[i];
           if (hv.w <= 0.0) continue;
           vec3 d = (vWP - hv.xyz) * vec3(1.0, 0.5, 1.0);
-          float dist = length(d) + (fbm3(vWP * 0.11 + float(i) * 3.7) - 0.5) * hv.w * 1.0;
+          float d0 = length(d);
+          if (d0 > hv.w * 1.55) continue; // cheap reject before the noise
+          float dist = d0 + (fbm3(vWP * 0.11 + float(i) * 3.7) - 0.5) * hv.w * 1.0;
           goo = max(goo, 1.0 - smoothstep(hv.w * 0.5, hv.w, dist));
         }
         if (goo > 0.001) {
@@ -312,7 +314,10 @@ function makeGroundMaterial() {
         for (int i = 0; i < 8; i++) {
           vec4 hv = uHives[i];
           if (hv.w <= 0.0) continue;
-          float dist = length(vWP.xz - hv.xz) + (fbm3(vec3(p * 0.1, float(i))) - 0.5) * 14.0;
+          if (hv.y > 120.0) continue;
+          float d0 = length(vWP.xz - hv.xz);
+          if (d0 > hv.w * 0.5 + 8.0) continue;
+          float dist = d0 + (fbm3(vec3(p * 0.1, float(i))) - 0.5) * 14.0;
           goo = max(goo, (1.0 - smoothstep(hv.w * 0.25, hv.w * 0.5, dist)) * step(hv.y, 160.0) * smoothstep(80.0, 0.0, hv.y - 40.0));
         }
         if (goo > 0.001) {
@@ -504,6 +509,15 @@ export class City {
     this.placeHives();
   }
 
+  // Remove the near-side (z0) parapet of the tier whose roof matches `top` — used to open up the spawn view.
+  hideParapet(top) {
+    const t = this.tiers.find((x) => Math.abs(x.x0 - top.x0) < 0.01 && Math.abs(x.z0 - top.z0) < 0.01 && Math.abs(x.y1 - top.y) < 0.01);
+    if (!t || !this.parapetIndex.has(t)) return;
+    const k = this.parapetIndex.get(t);
+    this.parapetMesh.setMatrixAt(k, new THREE.Matrix4().makeScale(0, 0, 0));
+    this.parapetMesh.instanceMatrix.needsUpdate = true;
+  }
+
   splits(a, b, n) {
     const out = [a];
     for (let k = 1; k < n; k++) out.push(lerp(a, b, (k + (this.r() - 0.5) * 0.35) / n));
@@ -568,9 +582,12 @@ export class City {
       const geo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
       const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 });
       const im = new THREE.InstancedMesh(geo, mat, parapets.length * 4);
+      this.parapetMesh = im;
+      this.parapetIndex = new Map();
       const c = new THREE.Color();
       let k = 0;
       for (const t of parapets) {
+        this.parapetIndex.set(t, k);
         const th = 0.35, h = 1.0;
         const w = t.x1 - t.x0, d = t.z1 - t.z0;
         c.setRGB(t.color[0] * 0.8, t.color[1] * 0.8, t.color[2] * 0.8);
@@ -977,8 +994,8 @@ export class City {
         .replace('#include <common>', `#include <common>\nuniform float uTime; varying vec3 vOP;\n${GLSL_NOISE}`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
           float vn = fbm3(vOP * 2.4 + vec3(0.0, uTime * 0.1, 0.0));
-          float vein = 1.0 - smoothstep(0.0, 0.05, abs(vn - 0.5));
-          totalEmissiveRadiance += vein * vec3(1.0, 0.05, 0.12) * (2.0 + 1.5 * sin(uTime * 3.0 + vOP.y * 2.0));`);
+          float vein = 1.0 - smoothstep(0.0, 0.022 + fwidth(vn), abs(vn - 0.5));
+          totalEmissiveRadiance += vein * vec3(1.0, 0.05, 0.12) * (1.4 + 1.0 * sin(uTime * 3.0 + vOP.y * 2.0));`);
     };
     this.hiveMat = hiveMat;
     const blob = new THREE.IcosahedronGeometry(1, 5);
@@ -1005,7 +1022,7 @@ export class City {
       }
       this.scene.add(g);
       const hive = {
-        id: k, pos: new THREE.Vector3(c.x, c.y + 2.5, c.z), hp: 600, maxHp: 600, alive: true,
+        id: k, pos: new THREE.Vector3(c.x, c.y + 2.5, c.z), hp: 450, maxHp: 450, alive: true,
         group: g, core, gooR: 30 + r() * 8, gooT: 1, roof: c.t,
         box: { x0: c.x - 4.5, z0: c.z - 4.5, x1: c.x + 4.5, z1: c.z + 4.5, y0: c.y, y1: c.y + 6.5, kind: 'hive' },
       };
