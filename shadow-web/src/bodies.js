@@ -44,6 +44,9 @@ function decode(name) {
     skinIndex: view('skinIndex', Uint8Array), skinWeight: view('skinWeight', Uint8Array),
     index: B.index[1] === 'uint32' ? view('index', Uint32Array) : view('index', Uint16Array),
   };
+  // a zero-length normal becomes NaN in the lighting, which bloom smears across the whole frame
+  const n = out.normal;
+  for (let i = 0; i < n.length; i += 3) if (!n[i] && !n[i + 1] && !n[i + 2]) n[i + 1] = 127;
   // bind-pose bone frames, built exactly like the baker builds them
   const W = {}, R = { pivot: new THREE.Quaternion() };
   for (const [k, v] of Object.entries(src.meta.joints)) W[k] = new THREE.Vector3(...v);
@@ -101,7 +104,7 @@ export function bodyGeometry(key) {
   geo.setAttribute('skinWeight', new THREE.BufferAttribute(d.skinWeight, 4, true));
   geo.setIndex(new THREE.BufferAttribute(d.index, 1));
   for (const g of d.meta.groups) geo.addGroup(g.start, g.count, BODY_PARTS.indexOf(g.part));
-  if (Object.values(scale).some((k) => k && k !== 1)) geo.computeVertexNormals();
+  // (normals stay as baked: regional scaling barely bends them, and recomputing would crease the part seams)
   geo.computeBoundingSphere();
   return (geoCache[key] = { geo, meta: d.meta, W: d.W, R: d.R, body: cfg.body });
 }

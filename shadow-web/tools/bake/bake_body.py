@@ -116,7 +116,7 @@ def bake(P, F, J):
     # vertex normals (area weighted)
     fn = np.cross(P[F[:, 1]] - P[F[:, 0]], P[F[:, 2]] - P[F[:, 0]])
     N = np.zeros_like(P); [np.add.at(N, F[:, k], fn) for k in range(3)]
-    N /= np.linalg.norm(N, axis=1, keepdims=True) + 1e-12
+    ln = np.linalg.norm(N, axis=1, keepdims=True); N = np.where(ln > 1e-12, N / np.maximum(ln, 1e-12), [0.0, 1.0, 0.0])
     # triangle → part (majority of its vertices' dominant bones)
     vpart = np.array([PARTS.index(part_of(b)) for b in dom])
     tp = vpart[F]
