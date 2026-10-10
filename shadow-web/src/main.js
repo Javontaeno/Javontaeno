@@ -57,7 +57,7 @@ class MenuNav {
   }
 }
 
-const SETTING_LABELS = { arach: 'ARACHNOPHOBIA MODE', vibration: 'VIBRATION', invertY: 'INVERT CAMERA Y' };
+const SETTING_LABELS = { arach: 'ARACHNOPHOBIA MODE', vibration: 'VIBRATION', invertY: 'INVERT CAMERA Y', tutorial: 'TUTORIAL TIPS' };
 
 function storedQuality() {
   const q = params.get('q');
@@ -149,7 +149,9 @@ class Game {
     let melee = 0, guns = 0;
     for (const t of this.tokens) (t.cfg.ranged ? guns++ : melee++);
     const crowd = this.enemies.filter((x) => x.alive && x.alerted && !x.cfg.ranged).length;
-    if (ranged ? guns >= 2 : melee >= (crowd >= 4 ? 3 : 2)) return false;
+    // a player who hangs back gets rushed: one more attacker is allowed in
+    const pressure = this.player.lastAttack > 1.6 ? 1 : 0;
+    if (ranged ? guns >= 2 : melee >= (crowd >= 4 ? 3 : 2) + pressure) return false;
     if (this.player.state === 'dead') return false;
     this.tokens.add(e);
     e.token = true;
@@ -446,6 +448,7 @@ async function boot() {
   document.getElementById('playBtn').onclick = () => game.start('new');
   document.getElementById('freeBtn').onclick = () => game.start('free');
   document.getElementById('restartBtn').onclick = () => { game.story.restartMission(); game.resume(); };
+  document.getElementById('trainBtn').onclick = () => { if (game.story.startTraining()) game.resume(); };
   game.titleEl = title;
   game.pauseEl = document.getElementById('pause');
   game.victoryEl = document.getElementById('victory');

@@ -3,6 +3,7 @@ import { L } from '../city.js';
 import { Ambulance, GangCar, Helicopter, Camp, Helicarrier, Billboard, Shrine, roadPath } from '../props.js';
 import { Character } from '../character.js';
 import { glyph } from '../controls.js';
+import { SETTINGS } from '../settings.js';
 
 // The campaign. Every mission is a generator: it yields commands (talk, go somewhere, fight) and
 // the story engine runs each one until it finishes. Dialogue is original to this game.
@@ -50,6 +51,82 @@ function* drill(A, S, stat, n, spawn, label) {
   });
   for (const e of grp.enemies) if (e.alive) { e.hp = 0; e.ko(V(0, 0, 0), { kb: 2 }); }
 }
+
+// ---------------------------------------------------------------------------
+// Training: step-by-step prompts, each filled by a stat counter (or a check) before the next appears.
+// ---------------------------------------------------------------------------
+const stat = (name, n) => (S, base) => (S.g.player.stats[name] - base[name]) / n;
+const MOVE = [
+  { text: (S) => `Move with ${key(S, 'move')} and look around with ${key(S, 'camera')}.`, check: stat('walked', 8) },
+  { text: (S) => `Press ${key(S, 'jump')} to jump. Hold it down for a super jump.`, check: stat('jumps', 2) },
+  { text: (S) => `Leap off the roof, then hold ${key(S, 'swing')} in the air to web-swing. Let go at the bottom of the arc to fling forward.`, check: stat('swingTime', 3) },
+  { text: (S) => `Swing or run into a building to run up the wall. Press ${key(S, 'jump')} to kick off it.`, check: stat('wallTime', 1.5) },
+  { text: (S) => `Look at a ledge until the diamond marker appears, then press ${key(S, 'zip')} to zip to it.`, check: stat('zips', 2) },
+];
+const FIGHT = [
+  { text: (S) => `Press ${key(S, 'attack')} to strike. Keep pressing to chain a four-hit combo.`, check: stat('hits', 6) },
+  { text: (S) => `Press ${key(S, 'lockon')} to lock on to an enemy. ${S.g.input.device === 'kbm' ? 'Flick the mouse' : 'Flick the right stick'} sideways to switch targets.`, check: (S) => (S.g.player.lock ? 1 : 0) },
+  { text: (S) => `When your spider-sense flashes, an attack is coming. Press ${key(S, 'dodge')} right then for a perfect dodge (or dodge three times).`,
+    check: (S, b) => { const s = S.g.player.stats; return Math.max((s.dodges - b.dodges) / 3, s.perfect - b.perfect); } },
+  { text: (S) => `Tap ${key(S, 'web')} to shoot webbing. Enough hits wrap an enemy up, and webbed enemies take extra damage.`, check: stat('webHits', 3) },
+  { text: (S) => `Hold ${key(S, 'attack')} to launch an enemy into the air.`, check: stat('launches', 1) },
+  { text: (S) => `Press ${key(S, 'suit')} to switch suits. The black suit is slower, but every hit lands harder.`, check: stat('suitSwaps', 1) },
+];
+const ADVANCED = [
+  { text: (S) => `Launch an enemy, then jump after them and keep striking before they land.`, check: stat('airHits', 4) },
+  { text: (S) => `Perfect dodge: press ${key(S, 'dodge')} the instant your spider-sense flashes.`, check: stat('perfect', 1) },
+  { text: (S) => `Look at an enemy farther away and press ${key(S, 'zip')} to web-strike them.`, check: stat('webStrikes', 2) },
+];
+
+function* lessons(A, S, steps, o = {}) {
+  const pl = S.g.player;
+  for (let i = 0; i < steps.length; i++) {
+    const st = steps[i];
+    const base = { ...pl.stats };
+    const show = (k, done) => S.ui.tutor({ title: o.title, text: st.text(S), step: i + 1, of: steps.length, prog: k, done });
+    yield A.until(() => {
+      if (o.tick) o.tick();
+      pl.hp = Math.max(pl.hp, pl.maxHp * 0.35); // nobody fails a lesson by dying in it
+      const k = Math.min(1, Math.max(0, st.check(S, base)));
+      show(k);
+      return k >= 1;
+    }, o.objective || 'Training');
+    show(1, true);
+    S.g.audio.tone({ freq: 660, to: 990, type: 'triangle', dur: 0.14, gain: 0.07 });
+    yield A.wait(0.8);
+  }
+  S.ui.tutor(null);
+}
+
+// Sparring partners for the combat lessons: soft-hitting, and replaced as soon as they're all down.
+function sparring(A, center, list) {
+  const soft = list.map((t) => [t, { cfg: { dmg: 3, evade: 0, leap: false, blocks: 0 } }]);
+  const s = {
+    grp: A.group(soft, center, { r: 6, alerted: true }),
+    tick() {
+      // anyone knocked off the roof is out of the lesson: bring in fresh partners
+      const here = s.grp.enemies.filter((e) => e.alive && Math.abs(e.pos.y - center.y) < 4 && e.pos.distanceTo(center) < 30);
+      if (here.length) return;
+      for (const e of s.grp.enemies) if (e.alive) e.remove();
+      s.grp = A.group(soft, center, { r: 6, alerted: true });
+    },
+    clear() { for (const e of s.grp.enemies) if (e.alive) { e.hp = 0; e.ko(V(0, 0, 0), { kb: 2 }); } },
+  };
+  return s;
+}
+
+const TRAINING = {
+  id: 'practice', act: 'TRAINING', title: 'Training', start: (S) => harlemRoof(S),
+  *run(A, S) {
+    const r = harlemRoof(S);
+    A.place(r, Math.PI);
+    yield* lessons(A, S, MOVE, { title: 'TRAINING · MOVEMENT' });
+    yield A.goto(r, 10, 'Head back to the training roof', { dy: 8, short: 'TRAINING' });
+    const spar = sparring(A, r, ['thug', 'thug', 'pipe']);
+    yield* lessons(A, S, [...FIGHT, ...ADVANCED], { title: 'TRAINING · COMBAT', tick: spar.tick });
+    spar.clear();
+  },
+};
 
 // Fly a character (and optionally the player, hanging below) from a to b.
 function flight(A, S, carrier, a, b, dur, o = {}) {
@@ -104,11 +181,20 @@ M({
       ['spidey', "New York, four days from now. Half the city's wearing black goo, my spider-sense won't stop screaming, and nobody can find Mary Jane."],
       ['spidey', 'Last anyone heard, she was in Harlem. So Harlem is where I start.'],
     ]);
-    A.toast(`Hold ${key(S, 'swing')} in the air to web-swing &middot; ${key(S, 'suit')} switches suits`, 7);
     const spot = mjRoof(S);
+    if (SETTINGS.tutorial) {
+      A.bark([['spidey', "Okay. Stretch first. Nobody wants to pull a hamstring mid-swing."]]);
+      yield* lessons(A, S, MOVE, { title: 'TRAINING · MOVEMENT', objective: 'Get moving' });
+    } else A.toast(`Hold ${key(S, 'swing')} in the air to web-swing &middot; ${key(S, 'suit')} switches suits`, 7);
     yield A.goto(spot, 9, 'Search Harlem for Mary Jane', { dy: 8, short: 'MJ' });
     A.bark([['spidey', "Her camera bag. She was here... and so is the welcoming committee."]]);
-    yield* wave(A, infected(5), spot, 'Fight off the infected');
+    if (SETTINGS.tutorial) {
+      // the first few are slow and sloppy: a chance to warm up before the real fight
+      const spar = sparring(A, spot, ['infected', 'infected', 'infected']);
+      yield* lessons(A, S, FIGHT, { title: 'TRAINING · COMBAT', objective: 'Fight off the infected', tick: spar.tick });
+      yield A.defeat(spar.grp, 'Fight off the infected');
+      yield* wave(A, infected(3), spot, 'More are coming');
+    } else yield* wave(A, infected(5), spot, 'Fight off the infected');
     const luke = A.actor('luke', spot.clone().add(V(-6, 0, 3)), { pose: 'stance' });
     A.faceEachOther('spidey', luke);
     yield talk(A, { luke }, [
@@ -1371,4 +1457,4 @@ function queenSpot(S) {
   return S.api().roof(w.cx, w.cz + 60, { max: 90 });
 }
 
-export { MISSIONS, SIDE, ALLIES };
+export { MISSIONS, SIDE, ALLIES, TRAINING };

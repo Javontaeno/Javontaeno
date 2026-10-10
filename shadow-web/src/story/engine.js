@@ -4,7 +4,7 @@ import { Enemy } from '../enemies.js';
 import { Boss, VenomHydra, projectiles } from '../bosses.js';
 import { StoryUI } from './ui.js';
 import { loadSave, writeSave } from './save.js';
-import { MISSIONS, SIDE, ALLIES } from './missions.js';
+import { MISSIONS, SIDE, ALLIES, TRAINING } from './missions.js';
 import { clamp, damp } from '../util.js';
 
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3();
@@ -80,6 +80,14 @@ export class Story {
     this.run(m);
   }
 
+  // Training from the pause menu: runs the drills anywhere, then hands back to whatever came next.
+  startTraining() {
+    if (this.cine || this.failing > 0 || this.side === TRAINING) return false;
+    if (this.g.player.state === 'dead') this.g.player.respawn();
+    this.startSide(TRAINING);
+    return true;
+  }
+
   startSide(m) {
     this.cleanup();
     this.side = m;
@@ -91,7 +99,7 @@ export class Story {
   run(m) {
     const g = this.g;
     this.startCache = null;
-    if (!this.done) this.syncWorld();
+    if (!this.done && m !== TRAINING && this.campaign) this.syncWorld();
     this.blackLocked = !!m.lockBlack; this.blackLockMsg = m.lockMsg || '';
     for (const ev of g.encounters.events) if (ev.spawned && ev.type !== 'hive') g.encounters.despawn(ev);
     g.encounters.events = g.encounters.events.filter((e) => e.type === 'hive');
@@ -126,6 +134,13 @@ export class Story {
     const g = this.g;
     this.gen = null; this.cmd = null;
     this.cleanup(true);
+    if (this.side === TRAINING) {
+      // back to the campaign: the interrupted mission (or the next one) waits at its marker
+      this.side = null;
+      g.hud.flashText('TRAINING COMPLETE', '#7dff9a');
+      if (this.done) this.postGame(); else if (this.campaign) this.waiting = true;
+      return;
+    }
     if (this.side) {
       const m = this.side;
       this.sideDone[m.id] = true;

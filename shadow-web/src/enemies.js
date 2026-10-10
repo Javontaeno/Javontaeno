@@ -6,17 +6,17 @@ import { clamp, damp, dampAngle, rng, lerp } from './util.js';
 
 const G = 30;
 const TYPES = {
-  thug: { hp: 55, speed: 5.6, reach: 2.3, dmg: 9, atkDur: 0.95, atk: 'punch', kind: 'thug', xp: 25 },
+  thug: { hp: 55, speed: 5.6, reach: 2.3, dmg: 9, atkDur: 0.95, atk: 'punch', chain: ['punch2'], kind: 'thug', xp: 25 },
   pipe: { hp: 70, speed: 5.0, reach: 2.8, dmg: 14, atkDur: 1.15, atk: 'pipe', kind: 'thug', weapon: 'pipe', xp: 35, blocks: 0.75 },
   gunner: { hp: 40, speed: 5.0, reach: 0, dmg: 6, kind: 'gunner', ranged: true, weapon: 'gun', xp: 30 },
-  crawler: { hp: 65, speed: 8.5, reach: 2.3, dmg: 10, atkDur: 0.8, atk: 'slash', kind: 'symbiote', leap: true, xp: 35, evade: 0.3 },
+  crawler: { hp: 65, speed: 8.5, reach: 2.3, dmg: 10, atkDur: 0.8, atk: 'slash', chain: ['slash2'], kind: 'symbiote', leap: true, xp: 35, evade: 0.3 },
   brute: { hp: 320, speed: 4.0, reach: 3.8, dmg: 20, atkDur: 1.35, atk: 'smash', kind: 'brute', heavy: true, radius: 0.95, xp: 150 },
   // symbiote-controlled civilians: two arms, two legs, two eyes — never spider-like
-  infected: { hp: 60, speed: 7.6, reach: 2.2, dmg: 9, atkDur: 0.8, atk: 'slash', kind: 'thug', crawl: true, leap: true, xp: 30, evade: 0.15, infected: true },
+  infected: { hp: 60, speed: 7.6, reach: 2.2, dmg: 9, atkDur: 0.8, atk: 'slash', chain: ['slash2'], kind: 'thug', crawl: true, leap: true, xp: 30, evade: 0.15, infected: true },
   assassin: { hp: 60, speed: 4.5, reach: 0, dmg: 14, kind: 'thug', build: 'lean', ranged: true, sniper: true, xp: 45 },
-  henchman: { hp: 60, speed: 5.6, reach: 2.3, dmg: 10, atkDur: 0.95, atk: 'punch', kind: 'thug', xp: 28, suit: true },
+  henchman: { hp: 60, speed: 5.6, reach: 2.3, dmg: 10, atkDur: 0.95, atk: 'punch', chain: ['punch2', 'kickE'], kind: 'thug', xp: 28, suit: true },
   hgun: { hp: 45, speed: 5.0, reach: 0, dmg: 7, kind: 'gunner', ranged: true, weapon: 'gun', xp: 32, suit: true },
-  leader: { hp: 140, speed: 5.2, reach: 2.5, dmg: 12, atkDur: 1.0, atk: 'punch', kind: 'thug', build: 'big', xp: 80, blocks: 0.4 },
+  leader: { hp: 140, speed: 5.2, reach: 2.5, dmg: 12, atkDur: 1.0, atk: 'punch', chain: ['punch2', 'kickE'], kind: 'thug', build: 'big', xp: 80, blocks: 0.4 },
 };
 const GANGS = {
   r7: { jacket: '#8a1414', bandana: '#c81e1e', stripe: '#e8e8e8' },
@@ -26,7 +26,7 @@ const CIVVY = ['#6a7f9a', '#b4a58a', '#7a3b4a', '#3f6a5a', '#9a9a9a', '#c48a3a',
 const JACKETS = ['#2b2f36', '#5a1e1e', '#1f3b2a', '#3b2a1a', '#1d2747', '#4a4a4a', '#6b5a2a', '#232323'];
 const PANTS = ['#2a3a5a', '#1f2a3f', '#333333', '#3a3326', '#26303a'];
 const SKINS = ['#e0b49a', '#c68f6e', '#8d5a3c', '#5e3b26', '#f1c9ae', '#a8714f'];
-const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _n = new THREE.Vector3();
+const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3(), _n = new THREE.Vector3();
 let ENEMY_ID = 0;
 
 function makeWeapon(kind) {
@@ -93,6 +93,33 @@ export class Enemy {
     this.stun = 0;
     this.spin = 0;
     this.home = this.pos.clone();
+    // hit reaction spring: forward/back bend, side bend, twist (radians, with velocities)
+    this.rx = 0; this.rz = 0; this.ry = 0; this.vrx = 0; this.vrz = 0; this.vry = 0;
+    this.atkName = this.cfg.atk; this.chainLeft = 0;
+    this.tauntT = 0; this.tumble = 0; this.bounced = false;
+  }
+
+  // a shove from a hit, felt along the body: lean away from it, then wobble back
+  flinch(dir, imp) {
+    const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
+    const lz = dir.x * sy + dir.z * cy, lx = dir.x * cy - dir.z * sy;
+    this.vrx += lz * imp; this.vrz -= lx * imp; this.vry += (lx >= 0 ? 1 : -1) * imp * 0.45 + (Math.random() - 0.5) * imp * 0.3;
+    this.tauntT = 0;
+  }
+
+  // where this enemy wants to stand around the player: evenly spaced slots, so a crowd surrounds you
+  slot(pl, out) {
+    let idx = 0, n = 0;
+    for (const o of this.game.enemies) {
+      if (!o.alive || !o.alerted || o.cfg.ranged || o.isBoss) continue;
+      if (!['circle', 'approach', 'attack', 'chase', 'stagger'].includes(o.state)) continue;
+      if (Math.abs(o.pos.x - pl.pos.x) + Math.abs(o.pos.z - pl.pos.z) > 16) continue;
+      if (o.id < this.id) idx++;
+      n++;
+    }
+    const a = this.game.time * 0.1 + (idx / Math.max(1, n)) * Math.PI * 2 + (this.game.encSeed || 0);
+    const r = (this.cfg.heavy ? 5 : 4.1) + (n > 4 ? 0.6 : 0);
+    return out.set(pl.pos.x + Math.sin(a) * r, this.pos.y, pl.pos.z + Math.cos(a) * r);
   }
 
   get alive() { return this.state !== 'ko' && this.state !== 'dead' && !this.removed; }
@@ -125,7 +152,8 @@ export class Enemy {
     this.armorBroken = Math.max(0, this.armorBroken - dt);
     this.armor = Math.max(0, this.armor - dt * 15);
     this.juggleT = Math.max(0, this.juggleT - dt);
-    this.cd -= dt;
+    this.cd -= dt * (pl.lastAttack > 1.6 && pl.state !== 'dead' ? 1.8 : 1);
+    this.tauntT = Math.max(0, this.tauntT - dt);
     this.strafeT -= dt;
     if (this.strafeT < 0) { this.strafe *= -1; this.strafeT = 1.5 + Math.random() * 2.5; }
 
@@ -167,11 +195,17 @@ export class Enemy {
         if (this.cfg.leap && this.cd <= 0 && dH > 4.5 && dH < 15 && Math.abs(dy) < 15 && Math.random() < dt * 1.2) { this.tryLeap(); break; }
         if (!sameLevel) { break; }
         if (dH > 7) { this.setState('chase'); break; }
+        // drift to this enemy's slot around the player, then shuffle side to side
+        const to = this.slot(pl, _v3).sub(this.pos); to.y = 0;
         const dir = _v2.copy(toP).normalize();
-        const radial = dH < 3.4 ? -0.8 : dH > 5.2 ? 0.8 : 0;
-        const tang = new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar(this.strafe * 0.55);
-        this.walk(dir.multiplyScalar(radial).add(tang), this.cfg.speed * 0.45, dt);
-        if (this.cd <= 0 && this.game.requestToken(this, false)) { this.setState('approach'); }
+        const tang = new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar(this.strafe * 0.3);
+        const far = to.length();
+        if (far > 0.7) this.walk(to.normalize().multiplyScalar(Math.min(1, far / 2)).add(tang), this.cfg.speed * (far > 3 ? 0.8 : 0.5), dt);
+        else if (dH < 3.2) this.walk(dir.negate().multiplyScalar(0.6), this.cfg.speed * 0.4, dt);
+        else this.walk(tang, this.cfg.speed * 0.35, dt);
+        // waiting their turn, thugs mouth off
+        if (!this.tauntT && this.cd > 0.8 && this.cfg.kind === 'thug' && dH < 11 && Math.random() < dt * 0.08) this.tauntT = 1.3;
+        if (this.cd <= 0 && !this.tauntT && this.game.requestToken(this, false)) { this.setState('approach'); this.atkName = this.cfg.atk; this.chainLeft = this.cfg.chain ? (Math.random() < 0.55 ? this.cfg.chain.length : 0) : 0; }
         break;
       }
       case 'approach': {
@@ -182,7 +216,7 @@ export class Enemy {
         break;
       }
       case 'attack': {
-        const dur = this.cfg.atkDur, hitT = ACT[this.cfg.atk].hit * dur;
+        const dur = this.cfg.atkDur * (this.atkName === this.cfg.atk ? 1 : 0.8), hitT = ACT[this.atkName].hit * dur;
         if (this.t < hitT - 0.12) faceP();
         this.threatT = this.t < hitT ? hitT - this.t : -1;
         if (this.t < hitT && dH > this.cfg.reach * 0.7) this.walk(_v2.copy(toP).normalize(), 2.5, dt);
@@ -190,7 +224,18 @@ export class Enemy {
           this.didHit = true;
           this.strike(dH, toP, dy);
         }
-        if (this.t >= dur) { this.didHit = false; this.releaseToken(); this.cd = 0.9 + Math.random() * 1.6; this.setState(this.perfectDodged ? 'stagger' : 'circle'); if (this.perfectDodged) this.stun = 1.2; }
+        if (this.t >= dur) {
+          this.didHit = false;
+          // keep the string going while the player is still in reach
+          if (this.chainLeft > 0 && !this.perfectDodged && dH < this.cfg.reach + 1.4 && sameLevel && pl.state !== 'dead') {
+            this.atkName = this.cfg.chain[this.cfg.chain.length - this.chainLeft];
+            this.chainLeft--;
+            this.setState('attack');
+            break;
+          }
+          this.releaseToken(); this.cd = 0.9 + Math.random() * 1.6; this.atkName = this.cfg.atk; this.chainLeft = 0;
+          this.setState(this.perfectDodged ? 'stagger' : 'circle'); if (this.perfectDodged) this.stun = 1.2;
+        }
         break;
       }
       case 'aim': {
@@ -218,7 +263,18 @@ export class Enemy {
           g.audio.gun(dH);
           if (!miss) pl.hurt(this.cfg.dmg, this.pos, 'bullet');
         }
-        if (this.t > 0.6) { this.releaseToken(); this.cd = 2.2 + Math.random() * 2.5; this.perfectDodged = false; this.setState('circle'); }
+        if (this.t > 0.6) {
+          this.releaseToken(); this.cd = 2.2 + Math.random() * 2.5; this.perfectDodged = false;
+          if (!this.cfg.sniper && this.pickCover(pl)) this.setState('reposition'); else this.setState('circle');
+        }
+        break;
+      }
+      case 'reposition': {
+        // run to a new firing spot off to the side, so the gunfire keeps coming from somewhere new
+        const to = _v2.copy(this.moveTo).sub(this.pos); to.y = 0;
+        if (to.length() < 0.8 || this.t > 2.6) { this.setState('circle'); break; }
+        this.walk(to.normalize(), this.cfg.speed * 1.25, dt);
+        this.yaw = dampAngle(this.yaw, Math.atan2(to.x, to.z), 8, dt);
         break;
       }
       case 'leapWind': {
@@ -277,6 +333,22 @@ export class Enemy {
     this.animate(dt);
   }
 
+  pickCover(pl) {
+    const city = this.game.city;
+    const a0 = Math.atan2(this.pos.x - pl.pos.x, this.pos.z - pl.pos.z);
+    for (let k = 0; k < 6; k++) {
+      const a = a0 + (Math.random() < 0.5 ? 1 : -1) * (0.6 + Math.random() * 0.8);
+      const r = 11 + Math.random() * 7;
+      const x = pl.pos.x + Math.sin(a) * r, z = pl.pos.z + Math.cos(a) * r;
+      const gy = city.groundAt(x, z, this.pos.y + 1);
+      if (Math.abs(gy - this.pos.y) > 0.6) continue;
+      if (city.collide(_v3.set(x, gy + 0.9, z), 0.5, _n)) continue;
+      (this.moveTo || (this.moveTo = new THREE.Vector3())).set(x, gy, z);
+      return true;
+    }
+    return false;
+  }
+
   tryLeap() {
     this.cd = 2.5 + Math.random() * 2;
     if (!this.game.requestToken(this, false)) return;
@@ -298,7 +370,7 @@ export class Enemy {
     const facing = _v2.set(Math.sin(this.yaw), 0, Math.cos(this.yaw));
     const inFront = dH < 0.6 || toP.clone().normalize().dot(facing) > 0.3;
     if (dH < this.cfg.reach + 0.4 && inFront && Math.abs(dy) < 2 && !this.perfectDodged) {
-      if (pl.hurt(this.cfg.dmg, this.pos)) g.fx.hitSpark(pl.chestPos(new THREE.Vector3()), false, false);
+      if (pl.hurt(this.cfg.dmg * (this.atkName === this.cfg.atk ? 1 : 0.75), this.pos)) g.fx.hitSpark(pl.chestPos(new THREE.Vector3()), false, false);
     } else g.audio.whoosh(false);
   }
 
@@ -360,6 +432,15 @@ export class Enemy {
         else if (this.state === 'leapAir') { this.setState('circle'); this.releaseToken(); this.vel.set(0, 0, 0); }
         else if (this.state === 'webbed') { this.vel.set(0, 0, 0); }
         else if (this.state === 'yanked') { this.setState('stagger'); this.stun = 0.6; }
+        else if (this.state === 'air' && !this.bounced && impact > 9 && this.hp > 0 && !(impact > 26 && this.fallStart - this.pos.y > 14 && !this.isBoss)) {
+          // slam into the ground and bounce once before lying still
+          this.bounced = true;
+          this.vel.set(this.vel.x * 0.45, impact * 0.27, this.vel.z * 0.45);
+          this.pos.y = gy + 0.01;
+          g.fx.add.emit(this.pos, 12, { speed: 4, color: [0.5, 0.45, 0.4], life: 0.45, size: 0.22, up: 1 });
+          g.audio.land(false);
+          if (this.spiked) { g.fx.ring(this.pos, 4, 0.4); g.cam.shake(0.2); this.hp -= 8; this.spiked = false; if (this.hp <= 0) { this.ko(new THREE.Vector3(0, 0, 0), { kb: 0 }); } }
+        }
         else {
           if (this.spiked) { g.fx.ring(this.pos, 4, 0.4); g.cam.shake(0.2); this.hp -= 8; this.spiked = false; }
           if (impact > 26 && this.fallStart - this.pos.y > 14 && !this.isBoss) { this.hp = 0; }
@@ -372,7 +453,7 @@ export class Enemy {
       if (this.pos.y < L.WATER_Y - 2) this.remove();
     }
     if (this.state === 'air' && this.fallStart === undefined) this.fallStart = this.pos.y;
-    if (grounded) this.fallStart = undefined;
+    if (grounded) { this.fallStart = undefined; this.bounced = false; this.tumble = 0; }
     // walls
     const c = _v2.copy(this.pos); c.y += 0.9 * this.scale;
     if (city.collide(c, this.radius, _n)) {
@@ -414,8 +495,9 @@ export class Enemy {
     }
     let dmg = spec.dmg;
     // committed attacks have hyper-armour against light hits: dodge, or use something heavy
-    if (this.state === 'attack' && light && this.cfg.atkDur && this.t > this.cfg.atkDur * 0.25 && this.t < ACT[this.cfg.atk].hit * this.cfg.atkDur) {
+    if (this.state === 'attack' && light && this.cfg.atkDur && this.t > this.cfg.atkDur * 0.25 && this.t < ACT[this.atkName].hit * this.cfg.atkDur) {
       this.hp -= dmg * 0.6;
+      this.flinch(dir, 2.5);
       this.flashT = 0.08;
       g.fx.add.emit(this.chest(_v), 6, { speed: 4, color: [3, 1.5, 0.5], life: 0.2, size: 0.1 });
       if (this.hp <= 0) { this.ko(dir, spec); }
@@ -424,6 +506,8 @@ export class Enemy {
     if (this.state === 'webbed') dmg *= 1.5;
     if (this.cfg.heavy && !spec.heavy && !this.armorBroken) dmg *= 0.5;
     this.hp -= dmg;
+    this.chainLeft = 0; this.atkName = this.cfg.atk;
+    this.flinch(dir, (5 + Math.min(7, dmg * 0.3) + (spec.heavy ? 3 : 0)) * (this.cfg.heavy && !this.armorBroken ? 0.35 : 1));
     this.flashT = 0.06;
     this.releaseToken();
     if (this.cfg.heavy) {
@@ -439,11 +523,12 @@ export class Enemy {
       this.setState('air'); this.vel.set(dir.x * 0.5, spec.launch, dir.z * 0.5); this.juggleT = 1.5; this.fallStart = this.pos.y;
     } else if (this.airborne || this.state === 'air') {
       if (spec.spike) { this.vel.set(dir.x * 3, -28, dir.z * 3); this.juggleT = 0; this.spiked = true; }
-      else if (spec.knock) { this.vel.set(dir.x * kb, Math.max(this.vel.y, spec.up || 3), dir.z * kb); this.juggleT = 0; }
+      else if (spec.knock) { this.vel.set(dir.x * kb, Math.max(this.vel.y, spec.up || 3), dir.z * kb); this.juggleT = 0; this.tumble = 1; }
       else { this.vel.set(dir.x * 1.2, Math.max(this.vel.y, 2.8), dir.z * 1.2); this.juggleT = 1.0; }
       if (this.state !== 'air') this.setState('air');
     } else if (spec.knock && (!this.cfg.heavy || this.armorBroken)) {
       this.setState('air'); this.vel.set(dir.x * kb, spec.up || 3.5, dir.z * kb); this.fallStart = this.pos.y;
+      this.tumble = kb > 4 ? 1 : 0.5;
     } else if (!this.cfg.heavy || this.armorBroken) {
       this.setState('stagger'); this.stun = spec.stun || 0.4;
       this.vel.addScaledVector(dir, kb);
@@ -570,11 +655,21 @@ export class Enemy {
       else if (sym) P.crawl(p, t * 2, 0.15);
       else if (this.alerted) P.stance(p, t); else P.idle(p, t);
     };
+    // the hit-reaction spring (underdamped, so a solid hit rocks them and they sway back)
+    const K = 140, C = 11;
+    this.vrx += (-K * this.rx - C * this.vrx) * dt; this.rx += this.vrx * dt;
+    this.vrz += (-K * this.rz - C * this.vrz) * dt; this.rz += this.vrz * dt;
+    this.vry += (-K * this.ry - C * this.vry) * dt; this.ry += this.vry * dt;
+    this.rx = clamp(this.rx, -0.9, 0.9); this.rz = clamp(this.rz, -0.7, 0.7); this.ry = clamp(this.ry, -0.8, 0.8);
     switch (this.state) {
-      case 'idle': case 'chase': case 'circle': case 'approach': stanceOrRun(); break;
+      case 'idle': case 'chase': case 'circle': case 'approach': case 'reposition':
+        stanceOrRun();
+        if (this.tauntT > 0) { evalAction(this.tgt, p, ACT.taunt, 1 - this.tauntT / 1.3); p.copy(this.tgt); }
+        break;
       case 'attack': {
         stanceOrRun();
-        evalAction(this.tgt, p, ACT[this.cfg.atk], Math.min(1, this.t / this.cfg.atkDur));
+        const dur = this.cfg.atkDur * (this.atkName === this.cfg.atk ? 1 : 0.8);
+        evalAction(this.tgt, p, ACT[this.atkName], Math.min(1, this.t / dur));
         p.copy(this.tgt);
         k = 22;
         break;
@@ -582,15 +677,38 @@ export class Enemy {
       case 'aim': case 'fire': stanceOrRun(); evalAction(this.tgt, p, ACT.aim, 0.5); p.copy(this.tgt); k = 16; break;
       case 'leapWind': P.crawl(p, 0, 0); evalAction(this.tgt, p, ACT.leap, Math.min(0.45, this.t)); p.copy(this.tgt); k = 18; break;
       case 'leapAir': evalAction(this.tgt, p, ACT.leap, 0.5 + Math.min(0.5, this.t)); p.copy(this.tgt); k = 18; break;
-      case 'stagger': P.hit(p, Math.max(0.3, 1 - this.t / (this.stun || 0.4))); k = 18; break;
-      case 'air': case 'yanked':
+      case 'stagger': {
+        // stumble: the flinch spring carries the direction, legs brace wide
+        const s = Math.max(0.3, 1 - this.t / (this.stun || 0.4));
+        P.hit(p, s * 0.6);
+        p.add('thL', -0.15 * s, 0, 0.12 * s).add('thR', 0.2 * s, 0, -0.12 * s).add('knL', 0.3 * s, 0, 0);
+        k = 20; break;
+      }
+      case 'air': case 'yanked': {
         P.fall(p, t * 3);
-        if (this.state === 'air' && this.vel.y < -2 && this.juggleT <= 0) { p.set('pivot', -0.9, 0, 0); }
+        if (this.juggleT > 0) {
+          // helpless in the air: limbs flailing
+          const f = Math.sin(t * 13), f2 = Math.cos(t * 11);
+          p.add('arL', f * 0.6, 0, 0.5 + f2 * 0.3).add('arR', -f * 0.6, 0, -0.5 - f2 * 0.3).add('thL', f2 * 0.4, 0, 0).add('thR', -f2 * 0.4, 0, 0);
+        } else if (this.state === 'air' && (this.tumble || this.vel.y < -2)) {
+          // knocked flying: rotate back toward lying flat, arms thrown out
+          this.spin = Math.min(1.35, this.spin + dt * (this.tumble ? 5 : 3));
+          p.set('pivot', -this.spin, 0, 0).add('arL', -0.5, 0, 0.8).add('arR', -0.5, 0, -0.8).add('head', 0.4, 0, 0).add('knL', 0.5, 0, 0);
+        }
         k = 14; break;
+      }
       case 'ko': P.fall(p, t * 4); p.set('pivot', -this.spin, 0, 0); k = 30; break;
       case 'down': case 'dead': P.down(p); k = 10; break;
       case 'getup': P.idle(p, t); evalAction(this.tgt, p, ACT.getup, Math.min(1, this.t / 0.8)); p.copy(this.tgt); k = 16; break;
       case 'webbed': P.webbed(p, t); k = 10; break;
+    }
+    if (this.state !== 'air') this.spin = this.state === 'ko' ? this.spin : 0;
+    if (this.alive && this.state !== 'down' && this.state !== 'webbed') {
+      const rx = this.rx, rz = this.rz, ry = this.ry, a = Math.abs(rx) + Math.abs(rz);
+      p.add('spine', rx * 0.55, 0, rz * 0.5).add('chest', rx * 0.4, ry * 0.6, rz * 0.35).add('head', rx * 0.6, ry * 0.4, rz * 0.5);
+      p.add('arL', -a * 0.3, 0, a * 0.7).add('arR', -a * 0.3, 0, -a * 0.7).add('elL', -a * 0.5, 0, 0).add('elR', -a * 0.5, 0, 0);
+      p.add('pivot', rx * 0.15, 0, rz * 0.12);
+      p.rootY -= a * 0.06;
     }
     if (this.cfg.kind === 'brute') { p.add('spine', 0.25, 0, 0).add('head', -0.25, 0, 0); p.add('arL', 0, 0, 0.25).add('arR', 0, 0, -0.25); }
     c.drive(p, k, dt);

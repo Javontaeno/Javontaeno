@@ -138,6 +138,7 @@ export class Input {
     return this.codes(a).some((c) => this.releasedSet.has(c)) || this.padEdge(a, false);
   }
   holdTime(a) {
+    if (this.virtual) return (this.virtual.holdT && this.virtual.holdT[a]) || 0;
     let t = 0;
     for (const c of this.codes(a)) if (this.holdT[c] !== undefined && this.down.has(c)) t = Math.max(t, this.holdT[c]);
     if (this.padHold[a]) t = Math.max(t, this.padHold[a]);

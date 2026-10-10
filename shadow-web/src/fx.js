@@ -413,7 +413,8 @@ export class FX {
         // homing so web shots feel fair against moving targets
         const to = _v.copy(b.target()).sub(b.mesh.position);
         const d = to.length();
-        if (d < 0.6) { b.life = 0; b.mesh.visible = false; b.onHit && b.onHit(b.mesh.position); continue; }
+        // (hit if it would reach the target this frame: at 60 m/s a blob covers more than the hit radius per frame)
+        if (d < Math.max(0.6, b.vel.length() * dt * 1.2)) { b.life = 0; b.mesh.visible = false; b.onHit && b.onHit(b.mesh.position); continue; }
         b.vel.lerp(to.normalize().multiplyScalar(b.vel.length()), Math.min(1, dt * 10));
       }
       b.mesh.position.addScaledVector(b.vel, dt);

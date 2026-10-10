@@ -7,7 +7,7 @@ const $ = (id) => document.getElementById(id);
 export class StoryUI {
   constructor(game) {
     this.g = game;
-    this.el = { dialog: $('dialog'), card: $('card'), choice: $('choice'), boss: $('bossbar'), mtitle: $('mtitle'), news: $('news'), credits: $('credits'), letter: $('letterbox'), karma: document.querySelector('#karma i') };
+    this.el = { tutor: $('tutor'), dialog: $('dialog'), card: $('card'), choice: $('choice'), boss: $('bossbar'), mtitle: $('mtitle'), news: $('news'), credits: $('credits'), letter: $('letterbox'), karma: document.querySelector('#karma i') };
     this.typing = null;
     this.mtT = 0;
     this.el.choice.querySelectorAll('.opt').forEach((o) => {
@@ -88,5 +88,22 @@ export class StoryUI {
     this.el.karma.style.left = `${50 - karma * 5}%`;
   }
 
-  reset() { this.hideLine(); this.hideCard(); this.hideChoice(); this.boss(null); this.letterbox(false); this.news(null); }
+  // the training prompt: o = { title, text, step, of, prog, done } or null to hide
+  tutor(o) {
+    const t = this.el.tutor;
+    if (!t) return;
+    if (!o) { t.classList.remove('on', 'done'); this.tutorKey = ''; return; }
+    const k = o.text + '|' + o.step;
+    if (k !== this.tutorKey) {
+      this.tutorKey = k;
+      t.querySelector('.tn').textContent = o.title || 'TRAINING';
+      t.querySelector('.ts').textContent = o.of ? `${o.step} / ${o.of}` : '';
+      t.querySelector('.tt').innerHTML = o.text;
+    }
+    t.querySelector('.tb i').style.width = `${Math.round(Math.min(1, o.prog || 0) * 100)}%`;
+    t.classList.toggle('done', !!o.done);
+    t.classList.add('on');
+  }
+
+  reset() { this.hideLine(); this.hideCard(); this.hideChoice(); this.boss(null); this.letterbox(false); this.news(null); this.tutor(null); }
 }

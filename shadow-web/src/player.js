@@ -75,7 +75,7 @@ export class Player {
     this.sense = 0;
     this.airTime = 0;
     this.webHold = 0; this.webYanked = false;
-    this.stats = { kos: 0, hives: 0, events: 0, perfect: 0, launches: 0, airHits: 0, webStrikes: 0, hits: 0, jumps: 0, swingTime: 0, wallTime: 0, zips: 0, webHits: 0, suitSwaps: 0, walked: 0 };
+    this.stats = { kos: 0, hives: 0, events: 0, perfect: 0, launches: 0, airHits: 0, webStrikes: 0, hits: 0, jumps: 0, swingTime: 0, wallTime: 0, zips: 0, webHits: 0, suitSwaps: 0, walked: 0, dodges: 0 };
     this.lock = null; this.lastAttack = 99;
   }
 
@@ -228,13 +228,15 @@ export class Player {
     // --- combat ---
     if (inp.pressed('attack')) {
       if (this.act && !this.act.dodge) this.queued = true;
-      else if (!this.act) this.attack();
+      else if (!this.act) { this.attack(); this.launchTried = false; }
     }
-    if (inp.held('attack') && inp.holdTime('attack') > 0.3 && this.act && this.act.chainIndex === 0 && this.act.t < this.act.dur * 0.5 && this.state === 'ground' && !this.act.launcherTried) {
-      // hold strike = launcher
-      this.act.launcherTried = true;
-      const t = this.act.target;
-      if (t && t.canLaunch) this.startAction('upper', t);
+    // hold strike = launcher: the opening jab turns into an uppercut (the jab itself is over before a hold reads as one)
+    const a0 = this.act;
+    if (inp.held('attack') && inp.holdTime('attack') > 0.22 && this.state === 'ground' && !this.launchTried && this.lastAttack < 0.5 &&
+      (!a0 || (a0.chainIndex === 0 && !a0.dodge))) {
+      this.launchTried = true;
+      const t = (a0 && a0.target) || this.pickTarget(4);
+      if (t && t.canLaunch && t.alive) { this.queued = false; this.startAction('upper', t); }
     }
     if (inp.pressed('web')) { this.webHold = 0; this.webYanked = false; }
     if (inp.held('web')) {
@@ -1004,6 +1006,7 @@ export class Player {
     const g = this.game;
     if (this.state === 'swing' || this.state === 'wall' || this.state === 'zip' || this.state === 'perch' || this.state === 'dead') return;
     if (this.act && this.act.dodge && this.act.t < this.act.dur * 0.7) return;
+    this.stats.dodges++;
     // spider-sense: dodging at the last instant triggers a perfect dodge
     let perfect = null;
     for (const e of g.enemies) if (e.alive && e.threatT >= 0 && e.threatT < 0.36 && e.targetsPlayer) { perfect = e; break; }

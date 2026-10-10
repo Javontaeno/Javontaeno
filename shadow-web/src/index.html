@@ -80,6 +80,14 @@
   .marker.side .dia { background: #ff3b3b; box-shadow: 0 0 14px #ff3b3b; border-radius: 50%; transform: none; }
   .marker .nm { display: block; font-size: 11px; letter-spacing: .14em; color: #ffe7a8; text-shadow: 0 1px 4px #000; }
   #objective .story { font-weight: 800; color: #ffd36a; letter-spacing: .14em; }
+  #tutor { position: absolute; top: 74px; left: 50%; transform: translateX(-50%) translateY(-6px); width: min(470px, 90vw); padding: 10px 16px 12px; background: rgba(6,8,14,.78); border-left: 3px solid #ffd36a; box-shadow: 0 6px 24px rgba(0,0,0,.45); opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none; }
+  #tutor.on { opacity: 1; transform: translateX(-50%); }
+  #tutor .th { font-size: 11px; letter-spacing: .22em; color: #ffd36a; font-weight: 800; display: flex; justify-content: space-between; }
+  #tutor .tt { font-size: 16px; margin-top: 5px; line-height: 1.45; }
+  #tutor .tt kbd, #tutor .tt .g { vertical-align: 1px; }
+  #tutor .tb { height: 3px; margin-top: 8px; background: rgba(255,255,255,.14); }
+  #tutor .tb i { display: block; height: 100%; width: 0; background: #ffd36a; box-shadow: 0 0 6px #ffd36a; transition: width .15s; }
+  #tutor.done { border-left-color: #7dff9a; } #tutor.done .tb i { background: #7dff9a; box-shadow: 0 0 6px #7dff9a; }
   #objective .call { font-size: 12px; margin-top: 5px; opacity: .75; letter-spacing: .1em; }
   body:not(.campaign) #karma, body:not(.campaign) #restartBtn { display: none !important; }
   .marker.edge { opacity: .8; }
@@ -203,6 +211,7 @@
 <div id="loading"><div>Building the city</div><div class="bar"><i></i></div></div>
 
 <div id="hud">
+  <div id="tutor"><div class="th"><span class="tn">TRAINING</span><span class="ts"></span></div><div class="tt"></div><div class="tb"><i></i></div></div>
   <div id="vitals">
     <div class="row"><span id="suitBadge">CLASSIC</span><span id="lvl">LV 1</span><div class="xpbar"><div id="xpFill"></div></div></div>
     <div class="hpbar"><div id="hpLag"></div><div id="hpFill"></div></div>
@@ -261,6 +270,8 @@
   <button class="btn ghost set nav" id="sensBtn" data-adjust="sens">CAMERA SENSITIVITY: ◀ 1.0 ▶</button>
   <button class="btn ghost set nav" data-set="arach">ARACHNOPHOBIA MODE: ON</button>
   <button class="btn ghost set nav" id="controlsBtn">SHOW CONTROLS</button>
+  <button class="btn ghost set nav" id="trainBtn">TRAINING</button>
+  <button class="btn ghost set nav" data-set="tutorial">TUTORIAL TIPS: ON</button>
   <button class="btn ghost set nav" id="restartBtn">RESTART MISSION</button>
   <div class="hint" id="pauseHint"></div>
 </div>
