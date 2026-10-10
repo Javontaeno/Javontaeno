@@ -67,11 +67,14 @@ export function hasBody(name) { return !!BODIES[name]; }
 
 // Geometry for a build: the body's mesh with each region scaled out from its bone axis.
 const geoCache = {};
-export function bodyGeometry(key) {
+// lod 'lo': the lighter crowd version of a body, when one is baked
+export function bodyGeometry(key, lod) {
   const cfg = BODY_FOR[key];
   if (!cfg || !hasBody(cfg.body)) return null;
-  if (geoCache[key]) return geoCache[key];
-  const d = decode(cfg.body);
+  const name = lod === 'lo' && hasBody(cfg.body + '_lo') ? cfg.body + '_lo' : cfg.body;
+  const ck = key + '|' + name;
+  if (geoCache[ck]) return geoCache[ck];
+  const d = decode(name);
   const pos = new Float32Array(d.position);
   const scale = { chest: cfg.torso, abdomen: cfg.belly || cfg.torso, pelvis: cfg.torso, upperArm: cfg.arms, foreArm: cfg.arms, thigh: cfg.legs, shin: cfg.legs, neck: cfg.torso };
   const frameOf = { chest: 'chest', abdomen: 'spine', pelvis: 'hips', neck: 'neck', upperArm: 'ar', foreArm: 'el', thigh: 'th', shin: 'kn' };
@@ -106,12 +109,12 @@ export function bodyGeometry(key) {
   for (const g of d.meta.groups) geo.addGroup(g.start, g.count, BODY_PARTS.indexOf(g.part));
   // (normals stay as baked: regional scaling barely bends them, and recomputing would crease the part seams)
   geo.computeBoundingSphere();
-  return (geoCache[key] = { geo, meta: d.meta, W: d.W, R: d.R, body: cfg.body });
+  return (geoCache[ck] = { geo, meta: d.meta, W: d.W, R: d.R, body: name });
 }
 
 // A fresh skeleton in bind pose: bones named like the procedural rig's joints.
-export function bodySkeleton(key) {
-  const g = bodyGeometry(key);
+export function bodySkeleton(key, lod) {
+  const g = bodyGeometry(key, lod);
   const bones = {};
   for (const b of BONE_ORDER) { bones[b] = new THREE.Bone(); bones[b].name = b; }
   for (const b of BONE_ORDER) {

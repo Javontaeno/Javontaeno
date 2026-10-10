@@ -16,7 +16,7 @@ const add = (parent, geo, mat, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx =
 };
 
 function hair(ch, style, color) {
-  const head = ch.j.head, k = ch.bulk * 0.97;
+  const head = ch.j.head, k = (ch.headK || ch.bulk) * 0.97;
   const mat = std(ch, color, { roughness: 0.55 });
   const g = new THREE.Group();
   g.position.set(0, 0.085, 0.012); g.scale.setScalar(k);
@@ -39,6 +39,7 @@ function blade(len) {
 
 export function addAccessories(ch, look) {
   const j = ch.j, k = ch.bulk;
+  const hk = ch.headK || k; // head-mounted pieces follow the head's real size on sculpted bodies
   const acc = (ch.acc = {});
   for (const a of look.acc) {
     switch (a) {
@@ -60,12 +61,12 @@ export function addAccessories(ch, look) {
       }
       case 'wolvFins': {
         const m = std(ch, 0x0b0b0b, { roughness: 0.5 });
-        for (const s of [-1, 1]) add(j.head, new THREE.ConeGeometry(0.03, 0.13, 6), m, s * 0.068 * k, 0.2 * k, -0.005, -0.25, 0, -s * 0.55, 1, 1, 0.35);
+        for (const s of [-1, 1]) add(j.head, new THREE.ConeGeometry(0.03, 0.13, 6), m, s * 0.068 * hk, 0.2 * hk, -0.005, -0.25, 0, -s * 0.55, 1, 1, 0.35);
         break;
       }
       case 'hood': {
         const m = std(ch, look.top || 0xe9ebee, { roughness: 0.75, side: THREE.DoubleSide });
-        add(j.head, new THREE.SphereGeometry(0.14, 24, 16, Math.PI / 2 + 0.85, Math.PI * 2 - 1.7, 0, Math.PI * 0.72), m, 0, 0.085, -0.004, 0, 0, 0, k, k * 1.05, k * 1.08);
+        add(j.head, new THREE.SphereGeometry(0.14, 24, 16, Math.PI / 2 + 0.85, Math.PI * 2 - 1.7, 0, Math.PI * 0.72), m, 0, 0.085, -0.004, 0, 0, 0, hk, hk * 1.05, hk * 1.08);
         break;
       }
       case 'cape': {
@@ -129,13 +130,19 @@ export function addAccessories(ch, look) {
       case 'cuffs': {
         const m = std(ch, 0xf2f2ee, { roughness: 1 });
         for (const sd of ['L', 'R']) {
-          add(j['el' + sd], new THREE.TorusGeometry(0.048 * k, 0.022, 8, 14), m, 0, -0.22, 0, Math.PI / 2);
-          add(j['kn' + sd], new THREE.TorusGeometry(0.055 * k, 0.024, 8, 14), m, 0, -0.36, 0, Math.PI / 2);
+          const fl = j['ha' + sd].position.length(), sl = j['ft' + sd].position.length();
+          add(j['el' + sd], new THREE.TorusGeometry(0.048 * (ch.fit ? 0.9 : k), 0.022, 8, 14), m, 0, -fl * 0.82, 0, Math.PI / 2);
+          add(j['kn' + sd], new THREE.TorusGeometry(0.055 * (ch.fit ? 0.9 : k), 0.024, 8, 14), m, 0, -sl * 0.82, 0, Math.PI / 2);
         }
         break;
       }
-      case 'belt': add(j.hips, new THREE.TorusGeometry(0.15 * k, 0.018, 6, 24), std(ch, look.beltColor || 0x9aa0a6, { metalness: 0.8, roughness: 0.3 }), 0, 0.07, 0, Math.PI / 2, 0, 0, 1.12 * (look.build === 'female' ? 1.1 : 1), 0.84, 1); break;
-      case 'tiara': add(j.head, new THREE.TorusGeometry(0.108 * k, 0.012, 6, 24), std(ch, 0xb8bec6, { metalness: 0.9, roughness: 0.25 }), 0, 0.13 * k, 0.012, Math.PI / 2 - 0.15, 0, 0, 0.9, 1.05, 1); break;
+      case 'belt': {
+        const m = std(ch, look.beltColor || 0x9aa0a6, { metalness: 0.8, roughness: 0.3 });
+        if (ch.fit) { const [rx, rz, oz] = ch.fit.waist; add(j.hips, new THREE.TorusGeometry(0.15, 0.018, 6, 28), m, 0, 0.03, oz, Math.PI / 2, 0, 0, (rx + 0.008) / 0.15, (rz + 0.008) / 0.15, 1); }
+        else add(j.hips, new THREE.TorusGeometry(0.15 * k, 0.018, 6, 24), m, 0, 0.07, 0, Math.PI / 2, 0, 0, 1.12 * (look.build === 'female' ? 1.1 : 1), 0.84, 1);
+        break;
+      }
+      case 'tiara': add(j.head, new THREE.TorusGeometry(0.108 * hk, 0.012, 6, 24), std(ch, 0xb8bec6, { metalness: 0.9, roughness: 0.25 }), 0, 0.13 * hk, 0.012, Math.PI / 2 - 0.15, 0, 0, 0.9, 1.05, 1); break;
       case 'cane': add(j.fiR, new THREE.CylinderGeometry(0.014, 0.018, 1.0, 8).translate(0, -0.42, 0), std(ch, 0x2a1d3a, { roughness: 0.3, metalness: 0.4 }), 0, 0, 0.02); break;
       case 'bat': {
         const g = add(j.fiR, new THREE.CylinderGeometry(0.035, 0.016, 0.84, 10).translate(0, 0.38, 0), std(ch, 0xb08850, { roughness: 0.5 }), 0, -0.03, 0.02, Math.PI / 2 + 0.2);
@@ -158,12 +165,12 @@ export function addAccessories(ch, look) {
       case 'visor': {
         const m = new THREE.MeshBasicMaterial({ color: new THREE.Color(4, 0.25, 0.2) });
         (ch.accMats || (ch.accMats = [])).push(m);
-        add(j.head, new THREE.TorusGeometry(0.105 * k, 0.014, 4, 20, Math.PI * 0.9), m, 0, 0.1 * k, 0.012, 0, 0, Math.PI * 0.05 + Math.PI, 1, 0.6, 1).rotation.set(Math.PI / 2, 0, Math.PI * 0.55);
+        add(j.head, new THREE.TorusGeometry(0.105 * hk, 0.014, 4, 20, Math.PI * 0.9), m, 0, 0.1 * hk, 0.012, 0, 0, Math.PI * 0.05 + Math.PI, 1, 0.6, 1).rotation.set(Math.PI / 2, 0, Math.PI * 0.55);
         break;
       }
       case 'electroStar': {
         const m = std(ch, look.accent || 0xf2d21b, { emissive: new THREE.Color(0.6, 0.5, 0.05), roughness: 0.4 });
-        const g = new THREE.Group(); g.position.set(0, 0.095 * k, 0.1 * k); j.head.add(g);
+        const g = new THREE.Group(); g.position.set(0, 0.095 * hk, 0.1 * hk); j.head.add(g);
         for (let i = 0; i < 5; i++) {
           const ang = (i / 5) * Math.PI * 2 + Math.PI / 2;
           const c = add(g, new THREE.ConeGeometry(0.022, 0.13, 5), m, Math.cos(ang) * 0.07, Math.sin(ang) * 0.07, 0, 0, 0, ang - Math.PI / 2);
@@ -172,7 +179,7 @@ export function addAccessories(ch, look) {
         break;
       }
       case 'tongue': {
-        const t = add(j.head, new THREE.ConeGeometry(0.025, 0.22, 8).translate(0, 0.11, 0), std(ch, 0xb0122a, { roughness: 0.25, emissive: 0x200004 }), 0, 0.045 * k, 0.1 * k, 1.9);
+        const t = add(j.head, new THREE.ConeGeometry(0.025, 0.22, 8).translate(0, 0.11, 0), std(ch, 0xb0122a, { roughness: 0.25, emissive: 0x200004 }), 0, 0.045 * hk, 0.1 * hk, 1.9);
         acc.tongue = t;
         break;
       }
@@ -198,8 +205,8 @@ export function addAccessories(ch, look) {
         const bp = big.attributes.position;
         for (let i = 0; i < bp.count; i++) { const y = bp.getY(i); bp.setZ(i, bp.getZ(i) - (y / 0.3) ** 2 * 0.07); }
         big.computeVertexNormals();
-        add(j.head, big, m, 0, 0.13 * k, 0.11 * k, 0.95, 0, 0);
-        add(j.head, new THREE.ConeGeometry(0.03, 0.12, 8).translate(0, 0.06, 0), m, 0, 0.19 * k, 0.07 * k, 0.5, 0, 0);
+        add(j.head, big, m, 0, 0.13 * hk, 0.11 * hk, 0.95, 0, 0);
+        add(j.head, new THREE.ConeGeometry(0.03, 0.12, 8).translate(0, 0.06, 0), m, 0, 0.19 * hk, 0.07 * hk, 0.5, 0, 0);
         break;
       }
       case 'katanas': {
@@ -241,14 +248,14 @@ export function addAccessories(ch, look) {
       }
       case 'ears': {
         const m = std(ch, look.skin || 0x24356e, { roughness: 0.6 });
-        for (const s of [-1, 1]) { const e = add(j.head, new THREE.ConeGeometry(0.02, 0.09, 6), m, s * 0.105 * k, 0.1 * k, -0.005, -0.5, 0, -s * 1.1); e.scale.set(1, 1, 0.4); }
+        for (const s of [-1, 1]) { const e = add(j.head, new THREE.ConeGeometry(0.02, 0.09, 6), m, s * 0.105 * hk, 0.1 * hk, -0.005, -0.5, 0, -s * 1.1); e.scale.set(1, 1, 0.4); }
         break;
       }
       case 'reactor': case 'ironEyes': {
         const glow = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 3.2, 4) });
         (ch.accMats || (ch.accMats = [])).push(glow);
         if (a === 'reactor') add(j.chest, new THREE.CylinderGeometry(0.035, 0.035, 0.01, 18), glow, 0, 0.13, 0.155 * k, Math.PI / 2);
-        else for (const s of [-1, 1]) add(j.head, new THREE.BoxGeometry(0.03, 0.007, 0.01), glow, s * 0.025, 0.105 * k, 0.106 * k, 0, s * 0.35, s * 0.15);
+        else for (const s of [-1, 1]) add(j.head, new THREE.BoxGeometry(0.03, 0.007, 0.01), glow, s * 0.025, 0.105 * hk, 0.106 * hk, 0, s * 0.35, s * 0.15);
         break;
       }
       case 'thrusters': {

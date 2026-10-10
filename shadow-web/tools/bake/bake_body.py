@@ -32,7 +32,8 @@ def part_of(b):
     return PART.get(b, PART.get(b[:2]))
 
 
-def bake(P, F, J):
+def compute_skin(P, F, J):
+    """Skin weights for a welded mesh against the game's joint layout. Returns weights and bind frames."""
     nV = len(P)
     W = {k: np.array(v, dtype=float) for k, v in J.items() if isinstance(v, list) and len(v) == 3}
     W['pivot'] = np.array([0.0, 1.05, 0.0])
@@ -113,6 +114,13 @@ def bake(P, F, J):
     bone_idx = np.array([JOINTS.index(b) for b in bones])
     skinIdx = bone_idx[top]
     dom = np.array(bones)[top[:, 0]]
+    return dict(W=W, R=R, skinIdx=skinIdx, tw=tw, dom=dom)
+
+
+def bake(P, F, J):
+    sk = compute_skin(P, F, J)
+    W, R, skinIdx, tw, dom = sk['W'], sk['R'], sk['skinIdx'], sk['tw'], sk['dom']
+    nV = len(P)
     # vertex normals (area weighted)
     fn = np.cross(P[F[:, 1]] - P[F[:, 0]], P[F[:, 2]] - P[F[:, 0]])
     N = np.zeros_like(P); [np.add.at(N, F[:, k], fn) for k in range(3)]
@@ -168,7 +176,13 @@ def bake(P, F, J):
     if DEBUG is not None:
         cols = np.array([[0.9,0.2,0.2],[0.9,0.6,0.2],[0.9,0.9,0.2],[0.2,0.8,0.3],[0.2,0.8,0.8],[0.3,0.4,0.95],[0.6,0.3,0.9],[0.9,0.3,0.7],[0.6,0.6,0.6],[1,1,1],[0.4,0.2,0.1]])
         json.dump({'P': np.round(P, 4).ravel().tolist(), 'F': F.ravel().tolist(), 'C': cols[vpart].ravel().tolist()}, open(DEBUG, 'w'))
+    # sizes for fitting costume pieces (hats, belts) to this body
+    wl = [l for l in contours(P, F, W['hips'][1] + 0.03) if l[:, 0].min() < 0 < l[:, 0].max()]
+    wl = max(wl, key=len) if wl else np.array([[0.15, 0, 0.11], [-0.15, 0, -0.11]])
+    meta_fit = {'headR': round(float(J['headTop'] - J['headCenter'][1]), 4),
+                'waist': [round(float(np.abs(wl[:, 0]).max()), 4), round(float((wl[:, 2].max() - wl[:, 2].min()) / 2), 4), round(float((wl[:, 2].max() + wl[:, 2].min()) / 2 - W['hips'][2]), 4)]}
     meta = {
+        'fit': meta_fit,
         'joints': {k: np.round(v, 5).tolist() for k, v in W.items() if k in JOINTS or k.startswith('toe')},
         'eye': J['eye'], 'headCenter': J['headCenter'], 'headTop': J['headTop'], 'groups': groups,
         'counts': {'verts': base, 'indices': len(out_idx)},

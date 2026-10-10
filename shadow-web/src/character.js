@@ -4,8 +4,8 @@ import { addAccessories } from './accessories.js';
 import { SETTINGS } from './settings.js';
 import { bodyGeometry, bodySkeleton, BODY_PARTS } from './bodies.js';
 
-// Sculpted skinned bodies (work in progress): opt in with ?bodies until every body is verified and licensed.
-const USE_BODIES = typeof location !== 'undefined' && /[?&]bodies/.test(location.search);
+// Sculpted skinned bodies replace the procedural segment rig; ?legacy brings the old models back for comparison.
+const USE_BODIES = typeof location === 'undefined' || !/[?&]legacy/.test(location.search);
 
 // ---------------------------------------------------------------------------
 // Joints & poses
@@ -1107,9 +1107,9 @@ export class Character {
       m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
     };
     const k = build.bulk;
-    const body = USE_BODIES && !look.legacy ? bodyGeometry(look.body || key) : null;
+    const body = USE_BODIES && !look.legacy ? bodyGeometry(look.body || key, look.lod) : null;
     this.skinned = !!body;
-    if (body) this.buildSkinned(look.body || key, body, mats, root);
+    if (body) this.buildSkinned(look.body || key, body, mats, root, look.lod);
     else {
       const pivot = node('pivot', root, 0, 1.05, 0);
       const hips = node('hips', pivot, 0, -0.02, 0);
@@ -1159,10 +1159,14 @@ export class Character {
         if (body) {
           // sit the lenses on the sculpted face
           const e = body.meta.eye, hw = body.W.head;
-          g.position.set(s * (e[0] + 0.004), e[1] - hw.y + 0.006, e[2] - hw.z - 0.012);
-        } else g.position.set(s * 0.036, 0.1, 0.1135);
-        g.rotation.set(-0.18, s * 0.42, s * -0.1);
-        g.scale.set(s * 1.18, 1.18, 1.18);
+          g.position.set(s * (e[0] - 0.002), e[1] - hw.y + 0.002, e[2] - hw.z + 0.006);
+          g.rotation.set(-0.15, s * 0.45, s * -0.1);
+          g.scale.set(s * 1.05, 1.05, 1.05);
+        } else {
+          g.position.set(s * 0.036, 0.1, 0.1135);
+          g.rotation.set(-0.18, s * 0.42, s * -0.1);
+          g.scale.set(s * 1.18, 1.18, 1.18);
+        }
         const f = new THREE.Mesh(frame, frameMat); f.position.set(-0.002, -0.0015, -0.003);
         const l = new THREE.Mesh(lens, this.lensMat);
         g.add(f, l);
@@ -1185,8 +1189,8 @@ export class Character {
   }
 
   // Build the sculpted skinned body: bones named like the procedural joints so every pose and action still applies.
-  buildSkinned(key, body, mats, root) {
-    const sk = bodySkeleton(key);
+  buildSkinned(key, body, mats, root, lod) {
+    const sk = bodySkeleton(key, lod);
     Object.assign(this.j, sk.bones);
     root.add(sk.root);
     const mesh = new THREE.SkinnedMesh(body.geo, BODY_PARTS.map((p) => mats[p]));
@@ -1197,6 +1201,9 @@ export class Character {
     mesh.bind(new THREE.Skeleton(sk.list));
     for (const b of sk.list) b.quaternion.identity(); // rest = the rig's zero pose (arms hanging)
     this.body = body; this.bodyMesh = mesh; this.headMesh = mesh;
+    // costume pieces size themselves to the sculpted head and waist instead of the build's bulk
+    this.fit = body.meta.fit || null;
+    this.headK = this.fit ? this.fit.headR / 0.115 : 1;
   }
 
   // Smoothly drive joints toward `target` pose.

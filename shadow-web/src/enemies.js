@@ -65,6 +65,7 @@ export class Enemy {
     if (opts.gang && GANGS[opts.gang]) look = { ...look, ...GANGS[opts.gang], mask: r() < 0.5 ? 'bandana' : null, hat: null };
     if (opts.look) look = opts.lookExact ? { seed: this.id, ...opts.look } : { ...look, ...opts.look };
     if (this.cfg.build) look.build = look.build || this.cfg.build;
+    if (!opts.lookExact) look.lod = 'lo'; // street crowds use the lighter body; bosses keep the full one
     this.char = new Character(this.cfg.kind, look);
     game.scene.add(this.char.root);
     if (this.cfg.weapon) {
