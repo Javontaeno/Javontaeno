@@ -62,6 +62,9 @@
   #lock:before, #lock:after { content: ''; position: absolute; width: 18px; height: 18px; border: 3px solid #ff3b47; filter: drop-shadow(0 0 4px #ff3b47); }
   #lock:before { left: 0; top: 0; border-right: 0; border-bottom: 0; }
   #lock:after { right: 0; bottom: 0; border-left: 0; border-top: 0; }
+  #lock.locked { animation: lockSpin 2.4s linear infinite; }
+  #lock.locked:before, #lock.locked:after { width: 24px; height: 24px; border-color: #ffd23b; filter: drop-shadow(0 0 6px #ffd23b); }
+  @keyframes lockSpin { from { rotate: 0deg; } to { rotate: 360deg; } }
   .ebar { position: absolute; left: 0; top: 0; width: 54px; height: 9px; display: none; }
   .ebar i { position: absolute; left: 0; top: 0; height: 5px; background: #ff3b47; box-shadow: 0 0 4px #000; }
   .ebar s { position: absolute; left: 0; top: 6px; height: 3px; background: #e8f0ff; }

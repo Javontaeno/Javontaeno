@@ -8,9 +8,11 @@ const RUN = 9.5, SPRINT = 17.5;
 const HAND_Y = 1.25; // swing constraint point above the feet
 
 const HIT = {
-  jab: { dmg: 9, kb: 2.5, stun: 0.35, reach: 2.5 },
-  cross: { dmg: 9, kb: 2.5, stun: 0.35, reach: 2.5 },
-  kick: { dmg: 12, kb: 4.5, stun: 0.45, reach: 2.8 },
+  jab: { dmg: 9, kb: 2.8, stun: 0.4, reach: 2.5 },
+  cross: { dmg: 9, kb: 2.8, stun: 0.4, reach: 2.5 },
+  hook: { dmg: 11, kb: 4, stun: 0.5, reach: 2.6 },
+  knee: { dmg: 12, kb: 3, up: 1.5, stun: 0.55, reach: 2.3 },
+  kick: { dmg: 12, kb: 5.5, stun: 0.5, reach: 2.8 },
   spin: { dmg: 17, kb: 10, up: 3, knock: true, reach: 3.0, aoe: 1.9, heavy: true },
   upper: { dmg: 12, launch: 11.5, reach: 2.6, heavy: true },
   airA: { dmg: 8, juggle: true, reach: 3.0 },
@@ -28,12 +30,14 @@ const HIT = {
   surge: { dmg: 32, kb: 12, up: 6, knock: true, aoe: 9, cone: -1.1, heavy: true, black: true, reach: 9 },
 };
 const DUR = {
-  jab: 0.27, cross: 0.27, kick: 0.36, spin: 0.52, upper: 0.45, airA: 0.28, airB: 0.3, airC: 0.46, slam: 0.55,
+  jab: 0.3, cross: 0.3, hook: 0.34, knee: 0.36, kick: 0.42, spin: 0.58, upper: 0.45, airA: 0.28, airB: 0.3, airC: 0.46, slam: 0.55,
   webStrike: 0.5, counter: 0.5, finisher: 1.0, webShot: 0.28, yank: 0.55, bomb: 0.38, tendrilA: 0.36, tendrilB: 0.36,
   tendrilC: 0.5, surge: 0.65, dodge: 0.42, roll: 0.4, rollL: 0.4, flip: 0.5,
 };
 
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3(), _n = new THREE.Vector3(), _hit = {};
+// ground combo strings; a string is picked at random each time a combo starts, always ending on the spin kick
+const COMBOS = [['jab', 'cross', 'kick', 'spin'], ['jab', 'hook', 'knee', 'spin'], ['cross', 'hook', 'kick', 'spin']];
 
 const NO_MOVE = { x: 0, y: 0 };
 export class Player {
@@ -71,7 +75,8 @@ export class Player {
     this.sense = 0;
     this.airTime = 0;
     this.webHold = 0; this.webYanked = false;
-    this.stats = { kos: 0, hives: 0, events: 0, perfect: 0, launches: 0, airHits: 0, webStrikes: 0 };
+    this.stats = { kos: 0, hives: 0, events: 0, perfect: 0, launches: 0, airHits: 0, webStrikes: 0, hits: 0, jumps: 0, swingTime: 0, wallTime: 0, zips: 0, webHits: 0, suitSwaps: 0, walked: 0 };
+    this.lock = null; this.lastAttack = 99;
   }
 
   get black() { return this.suit === 'black'; }
@@ -135,6 +140,11 @@ export class Player {
       }
     }
     if (this.state === 'air') this.airTime += dt; else this.airTime = 0;
+    if (this.state === 'swing') this.stats.swingTime += dt;
+    if (this.state === 'wall') this.stats.wallTime += dt;
+    if (this.state === 'ground') this.stats.walked += Math.hypot(this.vel.x, this.vel.z) * dt;
+    this.lastAttack += dt;
+    this.updateLock();
     // fell into the river
     if (this.pos.y < L.WATER_Y - 0.3) {
       g.fx.add.emit(this.pos, 40, { speed: 8, up: 6, color: [0.6, 0.7, 0.8], life: 0.8, size: 0.25 });
@@ -274,6 +284,7 @@ export class Player {
   }
 
   jump(v) {
+    this.stats.jumps++;
     this.state = 'air'; this.stateT = 0;
     this.vel.y = v;
     const big = v > 18;
@@ -652,6 +663,7 @@ export class Player {
     z.dur = clamp(dist / 52, 0.2, 2.6);
     z.t = 0;
     this.state = 'zip'; this.stateT = 0;
+    this.stats.zips++;
     this.act = null;
     this.yaw = Math.atan2(z.to.x - this.pos.x, z.to.z - this.pos.z);
     g.audio.thwip(this.black);
@@ -723,6 +735,7 @@ export class Player {
   // -------------------------------------------------------------------------
   pickTarget(range, preferAim = true) {
     const g = this.game;
+    if (this.lock && this.lock.targetable && this.lock.pos.distanceTo(this.pos) < range * 1.6) return this.lock;
     const dir = this.moveDir.lengthSq() > 0.04 ? _v.copy(this.moveDir).normalize() : g.cam.forwardH(_v);
     let best = null, bs = Infinity;
     if (preferAim && this.aim.enemy && this.aim.enemy.pos.distanceTo(this.pos) < range * 1.4) return this.aim.enemy;
@@ -757,9 +770,11 @@ export class Player {
     }
     if (this.counterT > 0 && t) { this.counterT = 0; return this.startAction('counter', t); }
     let names;
-    if (this.state === 'air') names = ['airA', 'airB', 'airA', 'airC'];
-    else names = this.black ? ['tendrilA', 'tendrilB', 'tendrilA', 'tendrilC'] : ['jab', 'cross', 'kick', 'spin'];
     const idx = this.chain % 4;
+    if (idx === 0) this.string = COMBOS[Math.floor(Math.random() * COMBOS.length)];
+    if (this.state === 'air') names = ['airA', 'airB', 'airA', 'airC'];
+    else names = this.black ? ['tendrilA', 'tendrilB', 'tendrilA', 'tendrilC'] : (this.string || COMBOS[0]);
+    this.lastAttack = 0;
     this.chain++;
     this.startAction(names[idx], t, { chainIndex: idx });
   }
@@ -918,12 +933,70 @@ export class Player {
       this.comboT = 2.6;
       this.focus = Math.min(3, this.focus + 0.055 * landed * (this.black ? 0.8 : 1.4));
       g.addXp(3 * landed * (1 + Math.floor(this.combo / 10)));
-      g.hitstop(spec.heavy ? 0.085 : 0.045);
-      g.cam.shake(spec.heavy ? 0.32 : 0.14);
+      this.stats.hits += landed;
+      // weight of the blow drives the freeze, camera kick and lens punch
+      const fin = a.chainIndex === 3 || a.name === 'counter' || a.name === 'finisher';
+      const w = fin ? 1.25 : spec.heavy ? 0.9 : spec.launch ? 0.8 : 0.45;
+      g.hitstop(0.035 + w * 0.08);
+      g.cam.shake(0.08 + w * 0.22);
+      g.cam.kick(_v.set(Math.sin(this.yaw), 0, Math.cos(this.yaw)), 0.06 + w * 0.16);
+      if (w >= 0.9) g.cam.punch(2 + w * 3);
       g.audio.punch(spec.heavy, black);
-      g.rumble(spec.heavy ? 0.5 : 0.18, spec.heavy ? 0.65 : 0.35, spec.heavy ? 120 : 60);
+      g.rumble(0.12 + w * 0.4, 0.3 + w * 0.4, 50 + w * 90);
       g.hud.comboPulse();
+      // the last enemy of a fight goes down in slow motion
+      if (fin || spec.heavy) {
+        const dead = [...targets].some((e) => !e.alive);
+        if (dead && !g.enemies.some((e) => e.alive && e.alerted && e.pos.distanceTo(this.pos) < 30)) g.slowmo(0.25, 0.7);
+      }
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Lock-on: the camera frames the target and every attack goes to it. Flick the camera to switch.
+  toggleLock() {
+    if (this.lock) { this.lock = null; this.game.audio.ui(); return true; }
+    const t = this.pickTarget(30);
+    if (!t || t.isHive) return false;
+    this.lock = t;
+    this.game.audio.tone({ freq: 880, to: 1320, type: 'triangle', dur: 0.08, gain: 0.06 });
+    return true;
+  }
+
+  switchLock(side) {
+    if (!this.lock) return;
+    const g = this.game, right = g.cam.rightH(_v3);
+    let best = null, bs = Infinity;
+    for (const e of g.enemies) {
+      if (!e.targetable || e === this.lock || e.isHive) continue;
+      const to = _v.copy(e.pos).sub(this.pos); const d = to.length();
+      if (d > 30) continue;
+      const lat = to.dot(right) * side; // side +1: the next enemy to the right on screen
+      if (lat <= 0.2) continue;
+      const sc = d * 0.4 + Math.abs(to.dot(g.cam.forwardH(_v2))) * 0.2 - lat * 0.1;
+      if (sc < bs) { bs = sc; best = e; }
+    }
+    if (best) { this.lock = best; g.audio.tone({ freq: 990, to: 1200, type: 'triangle', dur: 0.06, gain: 0.05 }); }
+  }
+
+  updateLock() {
+    const l = this.lock;
+    if (!l) return;
+    if (!l.targetable || l.pos.distanceTo(this.pos) > 38 || this.state === 'dead') {
+      // the target went down: hop to the next one close by, or let go
+      const next = l.targetable ? null : this.nearestEnemy(18);
+      this.lock = next;
+    }
+  }
+
+  nearestEnemy(range) {
+    let best = null, bd = range;
+    for (const e of this.game.enemies) {
+      if (!e.targetable || e.isHive) continue;
+      const d = e.pos.distanceTo(this.pos);
+      if (d < bd) { bd = d; best = e; }
+    }
+    return best;
   }
 
   // -------------------------------------------------------------------------
@@ -970,7 +1043,7 @@ export class Player {
       const hand = this.char.handWorld('R', _v);
       if (t && t.alive && !t.isHive) {
         const dir = t.chest(_v2).sub(hand).normalize();
-        g.fx.shootBlob(hand, dir.multiplyScalar(60), 1.2, (p) => { t.webHit(1, this); g.fx.add.emit(p, 10, { speed: 4, color: [2, 2, 2.2], life: 0.3, size: 0.1 }); g.audio.punch(false, false); }, () => t.chest(_v3));
+        g.fx.shootBlob(hand, dir.multiplyScalar(60), 1.2, (p) => { this.stats.webHits++; t.webHit(1, this); g.fx.add.emit(p, 10, { speed: 4, color: [2, 2, 2.2], life: 0.3, size: 0.1 }); g.audio.punch(false, false); }, () => t.chest(_v3));
       } else if (this.aim.valid) {
         const dir = _v2.copy(this.aim.point).sub(hand);
         const d = dir.length();
@@ -1090,6 +1163,7 @@ export class Player {
     const g = this.game;
     if (!this.black && g.story && g.story.blackLocked) { g.hud.flashText(g.story.blackLockMsg || 'SUIT UNAVAILABLE', '#b99cff'); return; }
     this.suit = this.black ? 'red' : 'black';
+    this.stats.suitSwaps++;
     g.fx.setSuit(this.black);
     g.audio.suit(this.black);
     g.rumble(0.5, 0.35, 350);

@@ -20,6 +20,7 @@ const BIND = {
   mute: ['KeyM'],
   help: ['KeyI'],
   recenter: ['KeyV'],
+  lockon: ['Tab', 'M1'],
   callin: ['KeyX'],
   pause: ['Escape', 'KeyP'],
 };

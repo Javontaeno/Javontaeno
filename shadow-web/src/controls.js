@@ -2,10 +2,10 @@
 
 export const KB = {
   move: 'W A S D', camera: 'Mouse', swing: 'Shift', jump: 'Space', attack: 'LMB', web: 'RMB', zip: 'E', dash: 'Q',
-  dodge: 'C', finisher: 'F', heal: 'H', suit: 'R', bomb: 'G', time: 'T', recenter: 'V', help: 'I', pause: 'Esc', callin: 'X',
+  dodge: 'C', finisher: 'F', heal: 'H', suit: 'R', bomb: 'G', time: 'T', recenter: 'V', lockon: 'Tab / MMB', help: 'I', pause: 'Esc', callin: 'X',
 };
 // Index into the W3C "standard" gamepad layout.
-export const PAD = { jump: 0, dodge: 1, attack: 2, web: 3, zip: 4, dash: 5, finisher: 6, swing: 7, help: 8, pause: 9, callin: 10, recenter: 11, suit: 12, heal: 13, bomb: 14, time: 15 };
+export const PAD = { jump: 0, dodge: 1, attack: 2, web: 3, zip: 4, dash: 5, finisher: 6, swing: 7, help: 8, pause: 9, callin: 10, lockon: 11, suit: 12, heal: 13, bomb: 14, time: 15 };
 
 const LABELS = {
   xbox: ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Menu', 'LS', 'RS', '↑', '↓', '←', '→'],
@@ -30,8 +30,9 @@ export function glyph(action, device) {
 }
 
 // Text shown in the controls panel and title screen.
-export function controlRows() {
+export function controlRows(device) {
   const sense = 'spider-sense';
+  const pad = device && device !== 'kbm';
   return [
     ['move', 'Move'], ['camera', 'Camera'],
     ['swing', 'Hold: web-swing / sprint'], ['jump', 'Jump · hold = super jump'],
@@ -40,7 +41,8 @@ export function controlRows() {
     ['dodge', `Dodge · on ${sense} = perfect`], ['finisher', 'Finisher (focus)'],
     ['heal', 'Heal (focus)'], ['suit', 'Switch suit'],
     ['bomb', 'Web bomb / symbiote surge'], ['time', 'Time of day'],
-    ['callin', 'Call an ally (story)'], ['recenter', 'Recenter camera'], ['help', 'Show / hide controls'],
+    ['callin', 'Call an ally (story)'], ['lockon', pad ? 'Lock on (no target: recenter camera)' : 'Lock on · flick camera = switch target'],
+    ...(pad ? [] : [['recenter', 'Recenter camera']]), ['help', 'Show / hide controls'],
     ['pause', 'Pause & options'],
   ];
 }

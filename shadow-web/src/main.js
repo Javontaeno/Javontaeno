@@ -332,6 +332,8 @@ class Game {
         if (inp.pressed('mute')) { this.audio.setMuted(!this.audio.muted); this.refreshSettingLabels(); }
         if (inp.pressed('help')) this.hud.toggleHelp();
         if (inp.pressed('recenter')) this.cam.recenter(this.player.yawVis);
+        // lock on to the nearest enemy; with nothing to lock (or on a pad, where R3 doubles up) recenter instead
+        if (inp.pressed('lockon') && !this.player.toggleLock()) this.cam.recenter(this.player.yawVis);
         if (inp.pressed('callin')) this.story.callIn();
         if (!this.paused) this.step(rdt);
       }
@@ -387,7 +389,16 @@ class Game {
     for (const ev of this.encounters.events) if (ev.spawned && !ev.cleared && ev.pos.y < 1) blockers.push({ x: ev.pos.x, z: ev.pos.z, r: 22 });
     this.city.update(dt, blockers);
     if (this.story.camOv) { this.story.applyCamera(rdt); this.cam.focus.copy(pl.pos).setY(pl.pos.y + 1.5); }
-    else this.cam.update(rdt, pl, this.input.look(rdt));
+    else {
+      const look = this.input.look(rdt);
+      if (pl.lock) {
+        // locked: a quick flick of the camera sideways switches to the next enemy that way
+        this.flick = (this.flick || 0) * Math.exp(-rdt * 10) + look.x;
+        this.flickCd = Math.max(0, (this.flickCd || 0) - rdt);
+        if (Math.abs(this.flick) > 0.07 && !this.flickCd) { pl.switchLock(Math.sign(this.flick)); this.flick = 0; this.flickCd = 0.35; }
+      } else this.flick = 0;
+      this.cam.update(rdt, pl, look);
+    }
     this.renderer.update(rdt, pl.pos);
     this.fx.update(dt, this.camera.position, pl.chestPos(_v).setY(pl.pos.y + 1.9), pl.sense);
     const u = this.renderer.fx.uniforms;

@@ -190,24 +190,41 @@ const sym = (o) => {
 const mirror = (A) => ({ ...A, keys: A.keys.map(([t, o]) => [t, sym(o)]) });
 
 const ACT = {};
-ACT.jab = { hit: 0.32, keys: [
-  [0, { arR: [-0.6, 0, -0.45], elR: [-2.3, 0, 0], chest: [0.08, 0.45, 0] }],
-  [0.3, { arR: [-1.62, 0, -0.08], elR: [-0.08, 0, 0], chest: [0.12, -0.55, 0], spine: [0.24, 0, 0], arL: [-0.8, 0, 0.45], elL: [-2.1, 0, 0], thR: [-0.15, 0, -0.2], knR: [0.4, 0, 0] }],
-  [0.55, { arR: [-1.55, 0, -0.1], elR: [-0.15, 0, 0], chest: [0.12, -0.5, 0], spine: [0.22, 0, 0] }],
+ACT.jab = { hit: 0.36, keys: [
+  [0, {}],
+  [0.2, { arR: [-0.45, 0, -0.5], elR: [-2.45, 0, 0], chest: [0.05, 0.38, 0], spine: [0.06, 0.1, 0], pivot: [0, 0.18, 0], arL: [-0.9, 0, 0.35], elL: [-2.2, 0, 0], rootY: -0.03 }],
+  [0.36, { arR: [-1.66, 0, -0.04], elR: [-0.04, 0, 0], chest: [0.16, -0.62, 0], spine: [0.3, -0.15, 0], pivot: [0, -0.28, 0], arL: [-0.95, 0, 0.45], elL: [-2.25, 0, 0], thR: [-0.25, 0, -0.18], knR: [0.5, 0, 0], thL: [0.28, 0, 0.06], knL: [0.32, 0, 0], head: [0.05, 0.3, 0], rootY: -0.07 }, 'out'],
+  [0.52, { arR: [-1.58, 0, -0.1], elR: [-0.14, 0, 0], chest: [0.18, -0.7, 0], spine: [0.32, -0.18, 0], pivot: [0, -0.32, 0], thR: [-0.22, 0, -0.18], knR: [0.45, 0, 0], rootY: -0.06 }],
   [1, {}],
 ] };
 ACT.cross = mirror(ACT.jab);
-ACT.kick = { hit: 0.38, keys: [
-  [0, { thR: [-0.4, 0, -0.1], knR: [1.7, 0, 0], spine: [0.1, 0, 0] }],
-  [0.35, { thR: [-1.85, 0, -0.1], knR: [0.05, 0, 0], ftR: [0.5, 0, 0], spine: [-0.4, 0, 0], arL: [-0.3, 0, 1.1], arR: [0.4, 0, -0.9], elL: [-0.4, 0, 0], elR: [-0.4, 0, 0], thL: [0.1, 0, 0.1], knL: [0.35, 0, 0], rootY: 0.02 }],
-  [0.6, { thR: [-1.7, 0, -0.1], knR: [0.15, 0, 0], spine: [-0.35, 0, 0], arL: [-0.3, 0, 1.0], arR: [0.4, 0, -0.9] }],
+ACT.hook = { hit: 0.38, keys: [
+  [0, {}],
+  [0.22, { arR: [-0.6, 0, -0.75], elR: [-1.8, 0, 0], chest: [0.05, 0.7, 0], spine: [0.1, 0.2, 0], pivot: [0, 0.35, 0], arL: [-0.9, 0, 0.4], elL: [-2.2, 0, 0], rootY: -0.05 }],
+  [0.38, { arR: [-1.35, -0.2, -1.25], elR: [-1.55, 0, 0], chest: [0.12, -0.95, 0], spine: [0.22, -0.3, 0.1], pivot: [0, -0.5, 0], thL: [0.2, 0, 0.1], knL: [0.45, 0, 0], thR: [-0.3, 0, -0.15], knR: [0.5, 0, 0], head: [0, 0.4, 0], rootY: -0.08 }, 'out'],
+  [0.56, { arR: [-1.25, -0.3, -1.1], elR: [-1.6, 0, 0], chest: [0.14, -1.05, 0], spine: [0.24, -0.34, 0.1], pivot: [0, -0.58, 0], rootY: -0.07 }],
   [1, {}],
 ] };
-ACT.spin = { hit: 0.5, keys: [
-  [0, { pivot: [0, 0, 0], thR: [-0.3, 0, -0.2], knR: [1.2, 0, 0] }],
-  [0.25, { pivot: [0, -2.4, 0], thR: [-0.8, 0, -1.0], knR: [0.8, 0, 0], spine: [-0.15, 0, 0.25], rootY: 0.25 }],
-  [0.5, { pivot: [0, -5.0, 0], thR: [-1.45, 0, -1.25], knR: [0.0, 0, 0], ftR: [0.6, 0, 0], spine: [-0.25, 0, 0.45], arL: [-0.2, 0, 1.4], arR: [-0.2, 0, -1.2], thL: [-0.3, 0, 0.2], knL: [0.8, 0, 0], rootY: 0.35 }],
-  [0.75, { pivot: [0, -6.28, 0], thR: [-0.6, 0, -0.5], knR: [0.6, 0, 0], rootY: 0.05 }],
+ACT.kick = { hit: 0.42, keys: [
+  [0, {}],
+  [0.24, { thR: [-1.45, 0, -0.35], knR: [2.05, 0, 0], ftR: [0.3, 0, 0], spine: [0.18, 0, 0.12], chest: [0, 0.3, 0], pivot: [0, 0.45, 0], arL: [-0.7, 0, 0.7], elL: [-1.6, 0, 0], arR: [-0.2, 0, -0.8], elR: [-1.2, 0, 0], thL: [-0.1, 0, 0.08], knL: [0.4, 0, 0], rootY: 0.02 }],
+  [0.42, { thR: [-1.65, 0, -1.05], knR: [0.04, 0, 0], ftR: [0.55, 0, 0], spine: [-0.32, 0, 0.5], chest: [0, -0.35, 0.1], pivot: [0, -0.75, 0], arL: [-0.2, 0, 1.25], elL: [-0.5, 0, 0], arR: [0.35, 0, -1.0], elR: [-0.4, 0, 0], thL: [0.12, 0, 0.12], knL: [0.25, 0, 0], head: [0.15, 0.4, 0], rootY: 0.05 }, 'out'],
+  [0.6, { thR: [-1.55, 0, -0.95], knR: [0.2, 0, 0], spine: [-0.28, 0, 0.45], pivot: [0, -0.85, 0], arL: [-0.2, 0, 1.15], arR: [0.3, 0, -0.95], rootY: 0.04 }],
+  [0.8, { thR: [-0.7, 0, -0.3], knR: [1.4, 0, 0], pivot: [0, -0.4, 0] }],
+  [1, {}],
+] };
+ACT.knee = { hit: 0.4, keys: [
+  [0, {}],
+  [0.22, { arL: [-1.45, 0, 0.15], arR: [-1.45, 0, -0.15], elL: [-0.9, 0, 0], elR: [-0.9, 0, 0], spine: [0.12, 0, 0], thR: [0.35, 0, 0], knR: [0.6, 0, 0], rootY: -0.04 }],
+  [0.4, { thR: [-2.05, 0, -0.05], knR: [2.2, 0, 0], ftR: [0.4, 0, 0], arL: [-0.65, 0, 0.25], arR: [-0.65, 0, -0.25], elL: [-1.7, 0, 0], elR: [-1.7, 0, 0], spine: [0.4, 0, 0], chest: [0.15, 0, 0], head: [0.25, 0, 0], thL: [0.1, 0, 0.05], knL: [0.1, 0, 0], rootY: 0.08 }, 'out'],
+  [0.58, { thR: [-1.9, 0, -0.05], knR: [2.15, 0, 0], spine: [0.36, 0, 0], arL: [-0.7, 0, 0.25], arR: [-0.7, 0, -0.25], rootY: 0.06 }],
+  [1, {}],
+] };
+ACT.spin = { hit: 0.52, keys: [
+  [0, {}],
+  [0.18, { pivot: [0, 0.65, 0], thR: [-0.45, 0, -0.25], knR: [1.45, 0, 0], spine: [0.2, 0, 0], arL: [-0.6, 0, 0.6], arR: [-0.6, 0, -0.6], rootY: -0.12 }],
+  [0.52, { pivot: [0, -4.3, 0], thR: [-1.5, 0, -1.3], knR: [0.0, 0, 0], ftR: [0.6, 0, 0], spine: [-0.3, 0, 0.5], arL: [-0.2, 0, 1.45], arR: [-0.2, 0, -1.25], thL: [-0.35, 0, 0.2], knL: [0.85, 0, 0], rootY: 0.34 }, 'out'],
+  [0.76, { pivot: [0, -5.7, 0], thR: [-0.7, 0, -0.55], knR: [0.7, 0, 0], spine: [-0.1, 0, 0.2], rootY: 0.1 }],
   [1, { pivot: [0, -6.28, 0] }],
 ] };
 ACT.upper = { hit: 0.36, keys: [
@@ -352,22 +369,34 @@ export { ACT };
 
 const EASE = (t) => t * t * (3 - 2 * t);
 // Evaluate an action at normalised time t on top of `base`, writing into `out`.
+// Keys are [t, sparse pose, ease?]. Channels follow a Catmull-Rom curve through the keys, so motion keeps its
+// momentum instead of stopping dead on every pose; ease ('out' = snap, 'in' = wind-up) shapes the segment ending at that key.
+const EASES = { lin: (u) => u, out: (u) => 1 - (1 - u) ** 3, in: (u) => u * u * u, s: EASE };
+const cr = (p0, p1, p2, p3, u) => {
+  const u2 = u * u, u3 = u2 * u;
+  return 0.5 * (2 * p1 + (p2 - p0) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u2 + (3 * p1 - p0 - 3 * p2 + p3) * u3);
+};
 export function evalAction(out, base, act, t) {
   out.copy(base);
-  const keys = act.keys;
+  const keys = act.keys, n = keys.length;
   let i = 0;
-  while (i < keys.length - 2 && t > keys[i + 1][0]) i++;
-  const [t0, k0] = keys[i], [t1, k1] = keys[Math.min(i + 1, keys.length - 1)];
-  const u = t1 > t0 ? EASE(clamp((t - t0) / (t1 - t0), 0, 1)) : 1;
-  const names = new Set([...Object.keys(k0), ...Object.keys(k1)]);
-  for (const j of names) {
+  while (i < n - 2 && t > keys[i + 1][0]) i++;
+  const i1 = Math.min(i + 1, n - 1);
+  const t0 = keys[i][0], t1 = keys[i1][0];
+  const ease = EASES[keys[i1][2] || act.ease || 'lin'];
+  const u = t1 > t0 ? ease(clamp((t - t0) / (t1 - t0), 0, 1)) : 1;
+  if (!act._names) { act._names = new Set(); for (const k of keys) for (const j of Object.keys(k[1])) act._names.add(j); }
+  const at = (idx) => keys[Math.max(0, Math.min(n - 1, idx))][1];
+  const k0 = at(i - 1), k1 = at(i), k2 = at(i1), k3 = at(i1 + 1);
+  for (const j of act._names) {
     if (j === 'rootY') {
-      const a = k0.rootY ?? base.rootY, b = k1.rootY ?? base.rootY;
-      out.rootY = lerp(a, b, u);
+      const b = base.rootY;
+      out.rootY = cr(k0.rootY ?? b, k1.rootY ?? b, k2.rootY ?? b, k3.rootY ?? b, u);
       continue;
     }
-    const a = k0[j] ?? base.v[j], b = k1[j] ?? base.v[j];
-    out.set(j, lerp(a[0], b[0], u), lerp(a[1], b[1], u), lerp(a[2], b[2], u));
+    const b = base.v[j];
+    const a0 = k0[j] ?? b, a1 = k1[j] ?? b, a2 = k2[j] ?? b, a3 = k3[j] ?? b;
+    out.set(j, cr(a0[0], a1[0], a2[0], a3[0], u), cr(a0[1], a1[1], a2[1], a3[1], u), cr(a0[2], a1[2], a2[2], a3[2], u));
   }
   return out;
 }
@@ -1086,6 +1115,8 @@ const BUILDS = {
   old: { bulk: 0.95, arm: 0.9, waist: 1.08, shoulders: 0.94, pec: 0.15, abs: false, jaw: 0.4, scale: 0.93 },
 };
 const geoCache = {};
+// How fast each joint catches up with its target: the spine and head lag a beat behind the limbs (overlap).
+const FOLLOW = { hips: 0.85, spine: 0.7, chest: 0.75, neck: 0.6, head: 0.55, elL: 1.1, elR: 1.1, haL: 1.15, haR: 1.15, fiL: 1.2, fiR: 1.2, knL: 1.05, knR: 1.05 };
 
 export class Character {
   constructor(kind, look = {}) {
@@ -1225,10 +1256,10 @@ export class Character {
 
   // Smoothly drive joints toward `target` pose.
   drive(target, k, dt) {
-    const a = damp(k, dt);
     for (const name of JOINTS) {
       const o = this.j[name];
       if (!o) continue;
+      const a = damp(k * (FOLLOW[name] || 1), dt);
       const v = target.v[name];
       this.e.set(v[0], v[1], v[2], name === 'pivot' ? 'YXZ' : 'XYZ');
       this.q.setFromEuler(this.e);
@@ -1241,7 +1272,7 @@ export class Character {
       }
       o.quaternion.slerp(this.q, a);
     }
-    this.rootY += (target.rootY - this.rootY) * a;
+    this.rootY += (target.rootY - this.rootY) * damp(k, dt);
     this.j.pivot.position.y = 1.05 + this.rootY;
   }
 

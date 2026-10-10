@@ -18,6 +18,9 @@ export class CameraRig {
     this.idleLook = 0;
     this.cine = 0; // 0..1 cinematic close-up (finishers)
     this.t = 0;
+    this.kickV = new THREE.Vector3(); // decaying positional jolt from heavy hits
+    this.punchF = 0; // decaying FOV squeeze
+    this.lockW = 0; // 0..1 how much the lock-on target steers the camera
   }
 
   forwardH(out = new THREE.Vector3()) { return out.set(Math.sin(this.yaw), 0, Math.cos(this.yaw)); }
@@ -30,6 +33,10 @@ export class CameraRig {
 
   recenter(yaw) { this.recenterYaw = yaw; }
 
+  // a short shove along the hit direction, and a quick zoom punch on heavy blows
+  kick(dir, amt) { this.kickV.addScaledVector(dir, amt); if (this.kickV.length() > 0.5) this.kickV.setLength(0.5); }
+  punch(deg) { this.punchF = Math.min(10, this.punchF + deg); }
+
   snapBehind(yaw) { this.yaw = yaw; }
 
   update(dt, player, look) {
@@ -37,7 +44,14 @@ export class CameraRig {
     const moving = player.vel.length();
     const fast = player.state === 'swing' || player.state === 'air' || player.state === 'zip';
     if (Math.abs(look.x) + Math.abs(look.y) > 1e-4) this.idleLook = 0; else this.idleLook += dt;
-    this.yaw -= look.x;
+    // lock-on: frame the player and the target together; horizontal look switches targets (main.js)
+    const lk = player.lock && player.lock.targetable ? player.lock : null;
+    this.lockW += ((lk ? 1 : 0) - this.lockW) * damp(6, dt);
+    if (!lk) this.yaw -= look.x;
+    if (lk && this.lockW > 0.05) {
+      const dx = lk.pos.x - player.pos.x, dz = lk.pos.z - player.pos.z;
+      if (dx * dx + dz * dz > 0.5) this.yaw = dampAngle(this.yaw, Math.atan2(dx, dz), 5 * this.lockW, dt);
+    }
     this.pitch = clamp(this.pitch + look.y, -1.2, 1.35);
     if (this.recenterYaw !== undefined) {
       this.yaw = dampAngle(this.yaw, this.recenterYaw, 12, dt);
@@ -56,12 +70,15 @@ export class CameraRig {
     else if (fast) want = 5.4 + moving * 0.03;
     else if (player.state === 'wall') want = 6.5;
     if (player.inCombat) want = Math.max(want, 6.8);
+    if (lk) want = Math.max(want, 6.2 + Math.min(4, Math.hypot(lk.pos.x - player.pos.x, lk.pos.z - player.pos.z) * 0.25));
     want = Math.min(want, 8.5);
     want = lerp(want, 2.6, this.cine);
     this.dist += (want - this.dist) * damp(3, dt);
 
     const target = _p.copy(player.pos);
     target.y += player.state === 'perch' ? 1.1 : 1.55;
+    // locked: shift the focus a little toward the target so both stay in frame
+    if (lk) target.lerp(_d.set(lk.pos.x, target.y, lk.pos.z), 0.2 * this.lockW);
     const k = fast ? 16 : 12;
     this.focus.lerp(target, damp(k, dt));
     if (this.focus.distanceTo(target) > 6) this.focus.copy(target);
@@ -86,6 +103,8 @@ export class CameraRig {
     pos.x += Math.sin(t * 1.1) * s * 0.35;
     pos.y += Math.sin(t * 1.7 + 1) * s * 0.3;
     pos.z += Math.sin(t * 1.3 + 2) * s * 0.35;
+    this.kickV.multiplyScalar(Math.exp(-dt * 14));
+    pos.add(this.kickV);
     this.cam.position.copy(pos);
     this.cam.lookAt(pos.clone().add(f));
 
@@ -100,7 +119,8 @@ export class CameraRig {
 
     const wantFov = 66 + clamp((moving - 10) * 0.55, 0, 24) - this.cine * 10;
     this.fov += (wantFov - this.fov) * damp(3, dt);
-    this.cam.fov = this.fov;
+    this.punchF *= Math.exp(-dt * 10);
+    this.cam.fov = this.fov - this.punchF;
     this.cam.updateProjectionMatrix();
   }
 }

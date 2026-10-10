@@ -31,7 +31,7 @@ export class HUD {
   refreshPrompts(device) {
     this.device = device;
     const rows = document.getElementById('helpRows');
-    if (rows) rows.innerHTML = controlRows().map(([a, label]) => `<div>${glyph(a, device)} ${label}</div>`).join('');
+    if (rows) rows.innerHTML = controlRows(device).map(([a, label]) => `<div>${glyph(a, device)} ${label}</div>`).join('');
     const tc = document.getElementById('titleControls');
     if (tc) tc.innerHTML = TITLE_ROWS.map((a) => `<div>${glyph(a, device)} ${TITLE_LABELS[a]}</div>`).join('');
     const note = document.getElementById('padNote');
@@ -155,10 +155,12 @@ export class HUD {
       el.reticle.className = a.kind;
     } else el.reticle.style.display = 'none';
     // target lock
-    const t = a.enemy || (p.target && p.target.alive && p.inCombat ? p.target : null);
+    const locked = p.lock && p.lock.targetable ? p.lock : null;
+    const t = locked || a.enemy || (p.target && p.target.alive && p.inCombat ? p.target : null);
     if (t) {
       this.project(t.chest(new THREE.Vector3()), o);
       el.lock.style.display = o.behind ? 'none' : 'block';
+      el.lock.className = locked ? 'locked' : '';
       el.lock.style.transform = `translate(${o.x}px, ${o.y}px) translate(-50%,-50%)`;
     } else el.lock.style.display = 'none';
 
