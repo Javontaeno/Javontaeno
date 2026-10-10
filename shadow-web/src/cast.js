@@ -45,6 +45,7 @@ export const CAST = {
     ranged: { kind: 'repulsor', dmg: 22, cd: 1.4 } },
   fantastic: { name: 'Mr. Fantastic', color: '#6aa0ff', build: 'lean', look: { skin: '#e8c0a0', top: '#1f4fb0', topKind: 'body', pattern: 'fantastic', hair: '#3a2a1c', temples: '#d8d8d8', gloves: '#0d0d10', boots: '#0d0d10', bareNeck: true, acc: ['hairShort'] } },
   goon: { name: "Fisk's Man", color: '#c9a8ff', build: 'thug', look: { skin: '#c68f6e', top: '#141418', topKind: 'suit', tie: '#1a1a1a', shirt: '#e8e8e8', pants: '#141418', shoe: '#0c0c0c', hair: '#1a1410', acc: ['hairShort', 'pistol'] } },
+  jjj: { name: 'J. Jonah Jameson', color: '#f0d27a', build: 'thug', look: { skin: '#e8c0a0', top: '#4a4f45', topKind: 'suit', tie: '#b5562a', shirt: '#f2efe6', pants: '#7a6a52', shoe: '#1a1410', hair: '#2a2a2a', temples: '#d8d8d8', mustache: '#3a3a3a', acc: ['hairShort'] } },
   sister: { name: "Electro's Sister", color: '#c79bff', build: 'female', look: { skin: '#e8c0a0', hair: '#2a1a10', top: '#6a4a7a', topKind: 'jacket', pants: '#2a2a3a', female: true, goo: true, acc: ['hairLong'] } },
   cop: { name: 'NYPD Officer', color: '#8ab4ff', build: 'thug', look: { skin: '#c68f6e', top: '#1a2a4a', topKind: 'jacket', pants: '#1a2a4a', hat: '#141c30', hair: '#1a1410', logo: '#d8c060', logoText: '★', acc: ['pistol'] } },
   symelectro: { name: 'Electro (Symbiote)', color: '#f2e23a', build: 'lean', look: { symbiote: true, symType: 'electro', vein: [1.0, 0.85, 0.1], accent: '#f2d21b', acc: ['electroStar'] } },
@@ -57,7 +58,7 @@ export class Actor {
   constructor(game, id, pos, opts = {}) {
     const c = CAST[id];
     this.game = game; this.id = id; this.cast = c;
-    const look = { ...c.look, build: c.build, seed: 500 + id.length, acc: [...((c.look && c.look.acc) || []), ...(opts.acc || [])] };
+    const look = { ...c.look, build: c.build, seed: 500 + id.length, castId: id, acc: [...((c.look && c.look.acc) || []), ...(opts.acc || [])] };
     this.char = new Character(c.look && c.look.symbiote ? 'symbiote' : 'thug', look);
     game.scene.add(this.char.root);
     this.pos = pos.clone();

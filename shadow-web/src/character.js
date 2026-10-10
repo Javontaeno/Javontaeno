@@ -3,6 +3,7 @@ import { GLSL_NOISE, damp, lerp, clamp, smooth, rng } from './util.js';
 import { addAccessories } from './accessories.js';
 import { SETTINGS } from './settings.js';
 import { bodyGeometry, bodySkeleton, BODY_PARTS } from './bodies.js';
+import { customFor, instanceCustom } from './custom.js';
 
 // Sculpted skinned bodies replace the procedural segment rig; ?legacy brings the old models back for comparison.
 const USE_BODIES = typeof location === 'undefined' || !/[?&]legacy/.test(location.search);
@@ -835,6 +836,7 @@ function paintHead(ctx, w, h, L, rnd) {
     }
     ctx.fillStyle = L.lips || 'rgba(80,30,25,0.8)'; ctx.fillRect(fx - w * 0.025, h * 0.64, w * 0.05, h * (L.lips ? 0.024 : 0.018));
     if (L.beard) { ctx.fillStyle = L.beard; ctx.fillRect(fx - w * 0.06, h * 0.6, w * 0.12, h * 0.16); }
+    if (L.mustache) { ctx.fillStyle = L.mustache; ctx.fillRect(fx - w * 0.04, h * 0.595, w * 0.08, h * 0.035); }
     ctx.fillStyle = 'rgba(0,0,0,0.1)'; ctx.fillRect(fx - w * 0.06, h * 0.6, w * 0.12, h * 0.12);
     if (L.mask === 'bandana') { ctx.fillStyle = L.bandana || '#a01818'; ctx.fillRect(fx - w * 0.1, h * 0.55, w * 0.2, h * 0.22); }
   }
@@ -1032,7 +1034,7 @@ function paintEnemy(part, look, rnd) {
 export const SYM_U = { uTime: { value: 0 } };
 // Re-apply arachnophobia mode to an enemy character that carries spider imagery. Heroes are skipped on purpose.
 export function applyArachnophobia(char) {
-  if (!char || char.kind === 'hero' || !char.look || char.look.symType !== 'venom' || !char.matByPart) return;
+  if (!char || char.kind === 'hero' || !char.look || char.look.symType !== 'venom' || !char.matByPart || !char.matByPart.chest) return;
   const m = char.matByPart.chest;
   const old = m.map;
   m.map = paintEnemy('chest', char.look, rng((char.look.seed || 1) * 7919)); // same noise stream the constructor used
@@ -1095,7 +1097,9 @@ export class Character {
     const mats = {};
     const parts = ['chest', 'abdomen', 'pelvis', 'upperArm', 'foreArm', 'hand', 'thigh', 'shin', 'foot', 'head', 'neck', 'joint'];
     const isHero = kind === 'hero';
-    for (const p of parts) mats[p] = isHero ? heroMaterial(p) : enemyMaterial(p, look, rnd);
+    // a custom model (personal build) replaces this character's look entirely
+    const custom = !look.legacy && customFor(look.customSlot || (isHero ? 'spidey' : look.castId));
+    if (!custom) for (const p of parts) mats[p] = isHero ? heroMaterial(p) : enemyMaterial(p, look, rnd);
     this.mats = Object.values(mats);
     this.matByPart = mats;
 
@@ -1107,9 +1111,10 @@ export class Character {
       m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
     };
     const k = build.bulk;
-    const body = USE_BODIES && !look.legacy ? bodyGeometry(look.body || key, look.lod) : null;
-    this.skinned = !!body;
-    if (body) this.buildSkinned(look.body || key, body, mats, root, look.lod);
+    const body = !custom && USE_BODIES && !look.legacy ? bodyGeometry(look.body || key, look.lod) : null;
+    this.skinned = !!body || !!custom;
+    if (custom) this.buildCustom(custom, isHero, root);
+    else if (body) this.buildSkinned(look.body || key, body, mats, root, look.lod);
     else {
       const pivot = node('pivot', root, 0, 1.05, 0);
       const hips = node('hips', pivot, 0, -0.02, 0);
@@ -1148,7 +1153,7 @@ export class Character {
       }
     }
     const head = J.head;
-    if (isHero) {
+    if (isHero && !custom) {
       // the lenses
       const lens = new THREE.ExtrudeGeometry(eyeShape(1), { depth: 0.004, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.0015, bevelSegments: 2 });
       const frame = new THREE.ExtrudeGeometry(eyeShape(1.28), { depth: 0.004, bevelEnabled: false });
@@ -1177,7 +1182,7 @@ export class Character {
     this.scale = build.scale * (look.scale || 1);
     this.bulk = k;
     this.look = look;
-    if (look.acc) addAccessories(this, look);
+    if (look.acc && !this.custom) addAccessories(this, look); // custom models bring their own hair and props
 
     this.pose = new Pose();
     this.tmpPose = new Pose();
@@ -1186,6 +1191,18 @@ export class Character {
     this.e = new THREE.Euler();
     this.overrides = {};
     this.rootY = 0;
+  }
+
+  // A custom model already rigged to this skeleton (tools/bake/rig_textured.py): use its bones as the joints.
+  buildCustom(gltf, isHero, root) {
+    const inst = instanceCustom(gltf, isHero);
+    Object.assign(this.j, inst.bones);
+    root.add(inst.scene);
+    root.updateMatrixWorld(true);
+    for (const b of Object.values(inst.bones)) b.quaternion.identity(); // rest = the rig's zero pose
+    this.custom = true;
+    this.mats = inst.mats;
+    this.matByPart = {};
   }
 
   // Build the sculpted skinned body: bones named like the procedural joints so every pose and action still applies.
@@ -1258,7 +1275,7 @@ export class Character {
 
   dispose() {
     this.root.removeFromParent();
-    for (const m of this.mats) { m.map?.dispose(); m.dispose(); }
+    for (const m of this.mats) { if (!this.custom) m.map?.dispose(); m.dispose(); } // custom models share their textures
     if (this.accMats) for (const m of this.accMats) m.dispose();
   }
 }

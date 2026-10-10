@@ -1,1 +1,4 @@
 node_modules/
+# personal-only models and the build that embeds them: never committed
+private/
+index.personal.html

@@ -10,6 +10,7 @@ import { Enemy, Encounters } from './enemies.js';
 import { HUD } from './hud.js';
 import { Actor, CAST } from './cast.js';
 import { Story } from './story/engine.js';
+import { loadCustomModels } from './custom.js';
 import { loadSave, clearSave } from './story/save.js';
 import { SYM_U, applyArachnophobia } from './character.js';
 import { clamp } from './util.js';
@@ -408,7 +409,8 @@ class Game {
 }
 
 // ---------------------------------------------------------------------------
-function boot() {
+async function boot() {
+  await loadCustomModels(); // personal build only: models embedded from private/
   const game = new Game();
   try {
     game.init();

@@ -534,14 +534,19 @@ M({
     A.time('day', true);
     const st = P(S).bugle.street.clone();
     const mj = A.actor('mj', st.clone().add(V(-4, 0, -2)), { pose: 'talk' });
-    A.faceEachOther('spidey', mj);
-    yield talk(A, { mj }, [
-      ['mj', "There you are. I sold the Bugle my photos from the Venom attack. Look — Fisk's guys were at the sewer grate, before Venom ever came up."],
+    const jjj = A.actor('jjj', st.clone().add(V(-1.5, 0, -5)), { pose: 'cross' });
+    A.faceEachOther('spidey', mj); jjj.face(pl.pos);
+    yield talk(A, { mj, jjj }, [
+      ['jjj', "YOU! Off my sidewalk, web-head! This is a newspaper, not a petting zoo for bug-eyed vigilantes!"],
+      ['mj', "Mr. Jameson, he's with me. Sort of."],
+      ['jjj', "Watson, if those photos of yours are half as good as you say, they're on my front page. Now get inside before he drips on something."],
+      ['mj', "There you are. The Bugle bought my photos from the Venom attack. Look — Fisk's guys were at the sewer grate before Venom ever came up."],
       ['spidey', "So Fisk knows about the symbiote."],
       ['mj', "Fisk is feeding it. And I'm guessing he'd like these pictures back."],
-      ['spidey', 'Behind me. Now.'],
+      ['spidey', 'Behind me. Both of you. Now.'],
     ]);
     mj.walkTo = st.clone().add(V(-14, 0, -6)); mj.pose = 'cross';
+    jjj.walkTo = st.clone().add(V(-12, 0, -8)); jjj.pose = 'cross';
     yield* wave(A, goons(6, ['henchman', 'hgun', 'pipe']), st, 'Protect the Daily Bugle', { r: 9 });
     yield* wave(A, [...goons(5), ['leader', { name: 'Fisk Enforcer', look: { jacket: '#141418', topKind: 'suit' } }]], st, 'Protect the Daily Bugle', { r: 9 });
     // the first outbreak
@@ -550,11 +555,13 @@ M({
     heli.center.copy(st); heli.radius = 26; heli.height = 22; heli.target = pl.pos;
     heli.pos.copy(st).add(V(60, 40, 0));
     yield* wave(A, infected(7), st, 'Stop the infected', { r: 10 });
-    A.news('BREAKING: SPIDER-MAN ATTACKS CIVILIANS OUTSIDE DAILY BUGLE  ·  POLICE ASK PUBLIC TO STAY INDOORS  ·  "HE\'S A MONSTER," SAYS WITNESS  ·');
+    A.news('BREAKING: SPIDER-MAN ATTACKS CIVILIANS OUTSIDE DAILY BUGLE  ·  POLICE ASK PUBLIC TO STAY INDOORS  ·  J. JONAH JAMESON: "I TOLD YOU SO"  ·');
     const cops = [A.actor('cop', st.clone().add(V(8, 0, 8)), { pose: 'aim' }), A.actor('cop', st.clone().add(V(11, 0, 4)), { pose: 'aim' })];
     for (const c of cops) c.face(pl.pos);
-    yield talk(A, { anchor: null, cop: cops[0], mj }, [
+    jjj.walkTo = null; jjj.place(st.clone().add(V(-6, 0, -1))); jjj.face(pl.pos); jjj.pose = 'talk';
+    yield talk(A, { anchor: null, cop: cops[0], mj, jjj }, [
       ['anchor', "Shocking footage from Midtown: Spider-Man, in a new black costume, beating civilians in broad daylight."],
+      ['jjj', "THERE! Ten years I've been saying it and nobody listened! A MENACE! Somebody get me a camera — I want that suit on the front page by six!"],
       ['cop', "Freeze, web-head! Hands where I can see 'em!"],
       ['spidey', 'They were infected! I was helping!'],
       ['mj', "Go! I'll get the real story out. Go!"],

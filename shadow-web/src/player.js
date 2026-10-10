@@ -1229,7 +1229,7 @@ export class Player {
     c.j.chest.getWorldPosition(HERO_U.uChest.value);
     HERO_U.uMix.value = this.suitMix;
     HERO_U.uTime.value = t;
-    c.lensMat.emissiveIntensity = 0.25 + 0.6 * g.renderer.cur.night;
+    if (c.lensMat) c.lensMat.emissiveIntensity = 0.25 + 0.6 * g.renderer.cur.night;
   }
 }
 void UP;
